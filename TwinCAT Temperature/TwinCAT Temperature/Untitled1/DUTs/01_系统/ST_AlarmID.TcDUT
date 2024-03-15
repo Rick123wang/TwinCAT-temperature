@@ -1,0 +1,50 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <DUT Name="ST_AlarmID" Id="{92a63e8b-f79a-4150-8510-8bdd23f6d389}">
+    <Declaration><![CDATA[TYPE ST_AlarmID :
+(*报警的id号，swen*)
+STRUCT
+	(*系统*)
+	EtherCATBusErr:					INT:=1;(*EtherCAT总线错误*)
+	SystemLoading:					INT:=2;(*系统启动中*)
+	EmergentStop:					INT:=3;(*急停按钮*)
+	ProductChangeNeedSave:			INT:=4;
+	ProductLoadingNoPowerOff:		INT:=5;
+	AirPressLow:					INT:=6;(*气压低!*)
+	Prushing:						INT:=7;(*暂停中*)
+	NeedHoming:						INT:=8;(*开机前请先找原点*)
+	IsHoming:						INT:=9;(*正在找原点*)
+	AutoStoping:					INT:=10;(*自动停机中*)
+	AutoStopImediery:				INT:=11;(*马上停机中*)
+	AutoRuning:						INT:=12;(*设备运行中*)
+	ComErrorVS:						INT:=13;(*视觉控制器通讯异常*)
+	ServoError:						INT:=14;(*伺服出错*)
+	ServoHwError:					INT:=15;(*伺服驱动器报错，硬件报错*)
+	ServoLimit:						INT:=16;(*伺服驱动器限位到*)
+	CycleTimeOut:					INT:=17;(*循环时间超时*)
+	ModbusRtuError:					INT:=18;(*ModbusRtu总线错误*)
+	RobotError1:					INT:=19;(*机器人错误*)
+	RobotError2:					INT:=20;(*机器人错误*)
+	StepServoError:					INT:=21;(*步进驱动器报错*)
+	RobotSN_Error:					INT:=22;(*机器人序列号异常*)
+
+	(*程序逻辑*)
+	ClampVacuum:					INT:=26;(*机器人1真空吸取失败*)
+
+
+
+
+
+
+
+
+	(*序列号*)
+	Machime_SoftHwDif:				INT:=50;(*软硬件不匹配*)
+	Machime_Alarm_NeedKey:			INT:=51;(*系统即将进入维护模式*)
+	Machime_Stop_NeedKey:			INT:=52;(*系统已经进入维护模式*)
+
+END_STRUCT
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

@@ -1,0 +1,26 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <DUT Name="ST_Setting" Id="{79ebdc56-6990-4aaa-b07d-0b374597b29d}">
+    <Declaration><![CDATA[TYPE ST_Setting :
+STRUCT
+	(*系统*)
+	gcSimulationMode:		BOOL;
+	JogVelocity:			REAL:=20;
+	AutoVelocity:			REAL:=500;(*皮带的速度*)
+	ClampVelocity:			REAL:=2000;(*机械手的速度*)
+
+	tCutTime:				REAL:=0.5;(*剪断时间*)
+
+	ZPickUpHeight:			REAL:=200;(*抓起来的高度*)
+	XPlacePos:				REAL:=450;(*抓过去的X距离*)
+	YPlacePos:				REAL:=330;(*抓过去的Y距离*)
+	ZPlacePos:				REAL:=-650;(*放到地板的高度*)
+	Box_Longth:				REAL:=215;(*箱子长*)
+	Box_Width:				REAL:=190;(*箱子宽*)
+	Box_Height:				REAL:=198;(*箱子高*)
+
+END_STRUCT
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

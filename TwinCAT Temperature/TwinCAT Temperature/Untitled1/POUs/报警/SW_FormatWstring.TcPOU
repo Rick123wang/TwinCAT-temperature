@@ -1,0 +1,64 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <POU Name="SW_FormatWstring" Id="{26730b47-e2ce-4ffe-9d4b-72ef26749fd2}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION_BLOCK SW_FormatWstring
+//格式化字符串
+//SwenChen
+//20171123
+VAR_INPUT
+	WstringIn:			WSTRING;
+	D1:					DINT;
+	D2:					DINT;
+	S1:					STRING;
+END_VAR
+VAR_OUTPUT
+	WstringOUT:			WSTRING;
+END_VAR
+VAR
+	Var1: 				INT;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[
+Var1:=WFIND(WstringIn,"%D");
+IF Var1<>0 THEN
+	WstringOUT := WREPLACE(WstringIn,DINT_TO_WSTRING(D1),2,Var1);
+
+	Var1:=WFIND(WstringOUT,"%D");
+	IF Var1<>0 THEN
+		WstringOUT := WREPLACE(WstringOUT,DINT_TO_WSTRING(D2),2,Var1);
+	END_IF
+ELSE
+	WstringOUT:=WstringIN;
+END_IF
+
+Var1:=WFIND(WstringOUT,"%S");
+IF Var1<>0 THEN
+	WstringOUT := WREPLACE(WstringOUT,STRING_TO_WSTRING(S1),2,Var1);
+END_IF
+
+
+
+
+]]></ST>
+    </Implementation>
+    <LineIds Name="SW_FormatWstring">
+      <LineId Id="25" Count="0" />
+      <LineId Id="22" Count="0" />
+      <LineId Id="27" Count="0" />
+      <LineId Id="50" Count="0" />
+      <LineId Id="47" Count="0" />
+      <LineId Id="31" Count="0" />
+      <LineId Id="30" Count="0" />
+      <LineId Id="51" Count="0" />
+      <LineId Id="35" Count="0" />
+      <LineId Id="45" Count="1" />
+      <LineId Id="29" Count="0" />
+      <LineId Id="23" Count="0" />
+      <LineId Id="37" Count="1" />
+      <LineId Id="55" Count="0" />
+      <LineId Id="16" Count="4" />
+      <LineId Id="9" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

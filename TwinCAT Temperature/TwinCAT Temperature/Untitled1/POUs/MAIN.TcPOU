@@ -1,0 +1,105 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <POU Name="MAIN" Id="{fd99a0ed-2c8d-4798-9d43-479a5290fc43}" SpecialFunc="None">
+    <Declaration><![CDATA[PROGRAM MAIN
+VAR
+	(* 选择功能块，温度控制库有两个功能块版本 V1和 V2 ，系统通过默认选择 V1，V1为旧版本，已被淘汰 *)
+	nSelectController	: UINT := 1;	
+	
+(* 激活系统触发条件 *)	
+	bStartTemControl	: BOOL;		
+	timer1				:ton;
+	ton1				:ton;
+	ton2				:ton;
+	light1				:BOOL;
+	light2				:BOOL;
+	Pt2					:TIME:=T#10D;
+	Et2					:TIME;
+	Tnowtotaltime		:REAL;
+	clk1				:R_trig;
+	act_1:FB_Actuator;
+	enable,lockbyitself,manualmode,simumode:BOOL;
+	s_rqwork,s_rqbasic:BOOL;
+	sensor AT %I*:ARRAY[0..7] OF BOOL;//输入信号 DI1-DI8
+	output AT %Q*:ARRAY[0..7] OF BOOL;//输出信号 DO1-DO8
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[(* 调用功能块V2，需将nSelectController从1切换为2 *)
+	timer1(IN:=  bStartTemControl, PT:=Pt2 , Q=> , ET=>Et2 );
+	clk1(CLK:=bStartTemControl , Q=> );
+MAIN_ALarm();
+EventGrid();	
+IF 	bStartTemControl THEN
+	
+	nSelectController:= 2  ;   
+	
+	Line_chart();		
+	data_save();
+	Tem_Act:=Controller_v2.iTempre_Compare;
+	Tem_Act_1:=Tem_Act/10;
+	Tem_control:=Controller_v2.iTempre;
+	Tem_control_1:=Tem_control/10;
+END_IF;
+	Tnowtotaltime:=TIME_TO_REAL(Et2)/1000;
+	
+
+	Controller_v2();
+	
+ton1(IN:=NOT ton2.Q, PT:=T#2000MS, Q=> light1, ET=> );
+ton2(IN:= ton1.Q, PT:= T#2000MS, Q=> , ET=> );
+IF NOT ton1.Q THEN
+	light2:=TRUE;
+	ELSE
+	light2:=FALSE;	
+	
+END_IF
+(*===================================================================*)
+act_1(
+	benable:= enable, 
+	inWork:= sensor[0], 
+	inBasic:= sensor[1], 
+	FilterInWork:= T#20MS, 
+	FilterInBasic:= T#20MS, 
+	rqWork:= s_rqwork, 
+	rqBasic:= s_rqbasic, 
+	TimeOutWork:= , 
+	TimeOutBasic:= , 
+	bUseTimeLimit:= simumode, 
+	bLockByItself:= lockbyitself, 
+	bForceEnableManualBt:= manualmode, 
+	sName:= "actor1", 
+	doWork=> output[0], 
+	doBasic=> output[1], 
+);
+]]></ST>
+    </Implementation>
+    <LineIds Name="MAIN">
+      <LineId Id="11" Count="0" />
+      <LineId Id="33" Count="0" />
+      <LineId Id="63" Count="1" />
+      <LineId Id="183" Count="0" />
+      <LineId Id="12" Count="0" />
+      <LineId Id="62" Count="0" />
+      <LineId Id="13" Count="1" />
+      <LineId Id="47" Count="0" />
+      <LineId Id="93" Count="0" />
+      <LineId Id="206" Count="0" />
+      <LineId Id="230" Count="0" />
+      <LineId Id="207" Count="0" />
+      <LineId Id="231" Count="0" />
+      <LineId Id="2" Count="0" />
+      <LineId Id="19" Count="0" />
+      <LineId Id="92" Count="0" />
+      <LineId Id="48" Count="0" />
+      <LineId Id="78" Count="0" />
+      <LineId Id="108" Count="1" />
+      <LineId Id="112" Count="2" />
+      <LineId Id="117" Count="2" />
+      <LineId Id="115" Count="0" />
+      <LineId Id="142" Count="0" />
+      <LineId Id="144" Count="16" />
+      <LineId Id="143" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

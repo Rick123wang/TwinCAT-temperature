@@ -1,0 +1,24 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <DUT Name="ST_Output" Id="{b5aedb2a-b141-4782-af5f-6dfd949699fe}">
+    <Declaration><![CDATA[TYPE ST_Output :
+STRUCT
+
+
+  	bqBoxCapperDw     (*	 压箱气缸	*)	,
+  	bqBoxCapperCut      (*	剪断气缸  	*)	,
+
+	bqClamperSuck	(*	机械手吸真空		*)	,
+ 	bqClamperZBrake          (*Z伺服刹车*)	,
+
+	bqLightGrean(*绿灯 *)	,
+ 	bqLightYellow(*黄灯*)	,
+ 	bqLightRed(*红灯*)	,
+ 	bqBuzzer(*蜂鸣器*)	,
+
+	noUse:				BOOL;
+
+END_STRUCT
+END_TYPE]]></Declaration>
+  </DUT>
+</TcPlcObject>

@@ -1,0 +1,226 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <POU Name="Controller_v2" Id="{af87d6dd-0784-46eb-bd9b-ea6d96cfb9a1}" SpecialFunc="None">
+    <Declaration><![CDATA[PROGRAM Controller_v2
+
+VAR
+		iTempre_Compare			AT %I*:INT;   
+		fTempre_Actual			:LREAL; 
+		fTempre_Actual_convert	:LREAL; 
+		itest					:LREAL; 
+		eCTRL_Mode 				: E_CTRL_MODE := eCTRL_MODE_Tune; 	(*控制模式*)
+		bSelSetpoint			: BOOL	:= FALSE;
+		
+			iTempre AT %I*:INT;                                  (* 传输回未被转换的温度值 *)
+			ftemp :LREAL;                                         (* 被转换的实际温度值 *)
+		ftemp_convert	:LREAL; 
+		fW						: LREAL;						(* 设定值 *)
+		
+		fY						: LREAL;						(* 模拟量输出中间变量 *)
+		fX						: LREAL;						(* 设备真实的温度值 *)
+		bYPWMPos				AT %Q*: BOOL;                   (* PWM输出，加热 *)
+		bYPWMNeg				AT %Q*: BOOL;                   (* PWM输出，冷却 *)
+		
+		bNoise					: BOOL;                         (* 系统中是否存在错误 *)
+		bError 					: BOOL;                         (* 存在错误的话，会生成一个错误代码 *)
+		eErrorId 				: E_CTRL_ErrorCodes;
+		
+		stControllerParameter	: ST_CTRL_TempCtrlParameter := (		
+		
+		(*内部结构体参数 *)
+		iMode					:= 1,											(*运作模式 ： 1=加热, 2=冷却, 3=加热以及冷却 *)
+		iReactionOnFailure		:= eCTRL_ReactionOnFailure_StopController,		(*当系统产生错误时，系统反应： 0=关闭系统, 1=手动操作 *)
+	
+		bSelCtrlParameterSet	:= FALSE,										(* FALSE = 内部pid设定, TRUE = 外部pid设定 *)
+	
+		dwAlarmSupp				:= 16#0000EFFF,									(* 报警限制值 *)
+		tCtrlCycleTime			:= T#500MS,										(* 控制器周期时间 *)
+		tTaskCycleTime			:= T#10MS,										(* PLC任务周期时间 *)
+		
+		(*整定参数*)
+		iTuningMode				:= 1,											(* 只加热、只冷却、先加热后冷却、先冷却后加热 *)
+	
+		tTuneStabilisation		:= T#5S,										(* 等待系统稳定下的时间 *)
+	
+		fEndTunePercentHeating	:= 80.0,										(* 大于80%，切换成闭环控制 *)
+		fYTuneHeating			:= 100.0,										(* 加热协调操作时的阶跃变换 *)
+		fYStableHeating			:= 0.0,											(* 加热调整操作 *)
+	
+		fEndTunePercentCooling	:= 20.0,										(* 小于20%，切换成闭环控制 *)
+		fYTuneCooling			:= 0.0,									        (*冷却协调操作时的阶跃变换 *)
+		fYStableCooling			:= 0.0,											(* 冷却调整操作 *)
+		fScalingFactor			:= 1.0,											(*加热和冷却的KP比例系数 *)
+		
+		(*设定点参数*)
+		fWMin					:= 0.0,											(*设定点的最小值 *)
+		fWMax					:= 300.0,										(*设定点的最大值 *)
+	
+		(*软启动*)
+		bEnableSoftStart		:= TRUE,										(* 启动方式：FALSE = 硬启动, TRUE = 软启动 *)
+		bEnableRamping			:= FALSE,										(* 波形：FALSE = 无斜波, TRUE = 有斜波 *)
+	
+		fWStartUp				:= 55.0,										(* 软启动的预设定值 *)
+		tStartUp				:= T#30S,										(* 软启动的等待时间*)
+		bStartUpRamping			:= FALSE,										(* 启动过程时是否加入斜波 *)
+		fWStartUpVeloPos		:= 0.3,											(* 启动过程时增加给定的最大梯度值*)
+		fWStartUpVeloNeg		:= 0.3,											(* 启动过程时减小给定的最大梯度值 *)
+	
+		fWVeloPos				:= 0.5,											(* 增加给定的最大梯度值 *)
+		fWVeloNeg				:= 0.5,											(* 减小给定的最大梯度值 *)	
+	
+		(* 实际值参数*)
+		bFilter 				:= FALSE,                                       (* 是否启动实际值过滤器*)
+		tFilter					:= T#0S,                                        (* 实际值过滤器的时间常数*)
+		
+		(* 死区参数 *)
+		bDeadband				:= FALSE,                                       (* 是否加入死区 *)
+		fEDeadband				:= 0.0,											(* 死区参数 *)
+		
+		(* 控制值参数*)
+		fYMin					:= 0.0,											(* 控制器下限值 *)
+		fYMax					:= 100.0,										(* 控制器上限值 *)
+		fYManual				:= 0.0,									 		(* 手动操作值*)
+		fYOnFailure				:= 0.0,											(* 故障时的手动控制值 *)
+		tPWMCycleTime			:= T#1S,										(* PWM周期 *)
+		tPWMMinOffTime			:= T#0S,										(* PWM最小的关闭时间*)
+		tPWMMinOnTime			:= T#0S,										(* PWM最小的开启时间 *)
+		tPWMWaitingTime			:= T#0S,										(* PWM从加热到冷却的切换时间*)
+		tPWMCycleTimeCool       := T#1S,                                        (* PWM冷却周期 *)
+	
+		fYThresholdOff			:= 0.0,											(* 三步关闭极限，此例程不需要使用 *)
+		fYThresholdOn			:= 0.0,											(* 三步开启极限，此例程不需要使用 *)
+	
+		nCyclesForSwitchOver	:= 100,                                         (* 参数级转换数 *) 
+	
+		(* 控制器设定 *)
+		bEnablePreController 	:= FALSE,										(* 允许预控制器 *)
+		bEnableZones 			:= FALSE,										(* 允许开环调节时的设定调节带 *)
+		bEnableCVFilter 		:= FALSE,										(* 允许CV滤波 *)
+		iFilterType 			:= 1,			 			                    (* CV滤波器类型，系统默认设定 *)
+		iControllerType 		:= eCTRL_ControllerType_PID,					(* 控制器的PID类型，系统默认设定 *)
+		
+		
+		(* 最小最大温度 *) 
+		TempLow					:= -5.0,                                        (* 第一道报警值下限 *) 
+		TempLowLow				:= -10.0,                                       (* 第二道报警值下限 *)
+		TempHigh				:= 80.0,                                        (* 第一道报警值上限 *)
+		TempHighHigh			:= 100.0,                                       (* 第二道报警值上限 *)
+		TempAbsoluteHigh		:= 300.0,                                       (* 设定报警值上限 *)
+		TempAbsoluteLow			:= 0.0,	                                        (* 设定报警值下限 *)
+		
+		(* 内部整定高级参数 *)
+		fTuneKp					:= 1.0,                                         (* 比例 *)
+		fTuneTn					:= 2.5,                                         (* 积分时间常数 *)
+		fTuneTv					:= 0.42,                                        (* 微分时间常数 *)
+		fTuneTd					:= 0.25                                         (* 阻尼时间常数 *)
+		);
+	
+	fbTempController			: FB_CTRL_TempController;                       (* 功能块声明 *)
+	
+
+	fbCtrlParameter				: FB_CTRL_CtrlParameter;                        (* 功能块声明 *)
+	stController				: ST_CTRL_ParaController;                       (* 结构体变量声明 *)
+	fbgetinfo					:FB_GetAdaptersInfo;
+
+	Address						:ARRAY[0..MAX_LOCAL_ADAPTERS]OF ST_IpAdapterInfo;
+	NetID: T_AmsNetId:='';
+	bExecute: BOOL;
+	bHeater_2 AT%Q*: BOOL;
+END_VAR
+VAR PERSISTENT
+fW1						: LREAL ;				(* 主设定值(保温值)*)
+fW2						: LREAL ;				(* 辅助设定值(加热值)*)		
+
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[fbgetinfo(
+	sNetID:= '5.127.65.238.1.1', 
+	bExecute:= bExecute, 
+	tTimeout:= , 
+	bBusy=> , 
+	bError=> , 
+	nErrID=> , 
+	arrAdapters=>Address , 
+	nCount=> , 
+	nGet=> );
+(* 接收的温度数据转换 *)
+fTempre_Actual:=INT_TO_LREAL(iTempre_Compare);
+fTempre_Actual_convert:=fTempre_Actual/10;
+ftemp:=INT_TO_LREAL (iTempre);
+ftemp_convert:=ftemp/10;
+(* 选择设定点 *)
+IF bSelSetpoint THEN
+	fW := fW2;
+ELSE
+	fW := fW1;
+END_IF
+
+
+(* 实际温度值中间变量转换*)				
+fbTempController.fX:=ftemp;		
+
+(* 设置功能块参数，只需修改 fX:=ftemp *)
+fbTempController(
+					eCtrlMode				:= eCTRL_Mode, 
+					bSelSetpoint			:= bSelSetpoint, 
+					fW1						:= fW1, 	//保温值
+					fW2						:= fW2, 	//一阶加温值
+					fX						:= ftemp_convert, //反馈温度
+					fYManual				:= , 
+					bOpenThermocouple		:= FALSE, 
+					bReverseThermocouple	:= FALSE, 
+					bBackVoltage			:= FALSE, 
+					bLeakage				:= FALSE, 
+					bShortCircuit			:= FALSE, 
+					bOpenCircuit			:= FALSE, 
+					sParaControllerExternal	:= stController, 
+					sControllerParameter	:= stControllerParameter, 
+					);
+					 
+(* 模拟量输出，此例程无需使用 *)			
+//fY := fbTempController.fYAnalog;
+//IF  NOT main.bStartTemControl THEN
+//	bYPWMPos :=FALSE;
+//END_IF
+(* PWM加热输出 *)
+bYPWMPos := fbTempController.bYPWMPos;
+bHeater_2:=	fbTempController.bYPWMPos;
+(* PWM冷却输出，此例程无需使用 *)
+//bYPWMNeg := fbTempController.bYPWMNeg;
+
+bError := fbTempController.bError;
+eErrorId := fbTempController.eErrorId;
+
+(* 选择控制器模式。第一次使用时，eCTRL_Mode必须先进入自整定模式：eCTRL_STATE_TUNED 进行参数整定的操作*)
+(* 参数整定之后，再进入主动模式使系统控制温度 *)
+IF fbTempController.eCtrlState = eCTRL_STATE_TUNED THEN
+	eCTRL_Mode := eCTRL_MODE_ACTIVE;	
+END_IF
+
+
+
+]]></ST>
+    </Implementation>
+    <LineIds Name="Controller_v2">
+      <LineId Id="688" Count="8" />
+      <LineId Id="687" Count="0" />
+      <LineId Id="439" Count="0" />
+      <LineId Id="949" Count="1" />
+      <LineId Id="188" Count="0" />
+      <LineId Id="186" Count="0" />
+      <LineId Id="3" Count="5" />
+      <LineId Id="315" Count="0" />
+      <LineId Id="14" Count="23" />
+      <LineId Id="564" Count="0" />
+      <LineId Id="820" Count="1" />
+      <LineId Id="38" Count="1" />
+      <LineId Id="563" Count="0" />
+      <LineId Id="562" Count="0" />
+      <LineId Id="40" Count="5" />
+      <LineId Id="561" Count="0" />
+      <LineId Id="46" Count="2" />
+      <LineId Id="58" Count="2" />
+      <LineId Id="2" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

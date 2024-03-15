@@ -1,0 +1,237 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <POU Name="FB_DirectoryCopy" Id="{f29bc2d6-4344-466c-9d34-1f895b48f018}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION_BLOCK FB_DirectoryCopy
+(*SwenChen 2011.4.13 编辑*)
+VAR_INPUT
+	srcNetId				: T_AmsNetId;	(* TwinCAT network address of the source file *)
+	srcPathName			: T_MaxString;	(* source file path *)(*源的地址*)
+	destNetId			: T_AmsNetId;	(* TwinCAT network address of the destination file *)
+	destPathName		: T_MaxString;  	(* destination file path  *)(*目标的上层地址*)
+	DirectoryName		: T_MaxString;  	(* destination file  name *)(*目标文件夹名字*)
+	FileType				: STRING:='*';  		(* destination file  name *)(*文件类型*)
+	bExecute			: BOOL;			(* rising edge start fb execution *)
+	bFindFileList			: BOOL;			(* rising edge start fb execution *)
+	tAdsTimeOut			: TIME;			(* ads timeout *)
+	bContinueWhenErr	:BOOL;
+	bCancelWhenErr		:BOOL;
+END_VAR
+VAR_OUTPUT
+	bBusy				:BOOL;
+	bError				:BOOL;
+	nErrId				:UDINT;
+	(*==============
+	ErrId:=1;		(*ErrId: no find source dir*)
+	ErrId:=2;		(*ErrId: no find target dir*)
+	ErrId:=3:		target have same file;
+	ErrId:=4:		(*Input parameter error*)
+	================*)
+END_VAR
+VAR
+	Step				:DWORD;
+	RisingEdge			:R_TRIG;
+	fbFindFileList:			FB_EnumFindFileList;
+	fbEnumFindFileEntry:	FB_EnumFindFileEntry;
+	srcFilesLists:			 ARRAY[1..12]  OF ST_FindFileEntry;
+	destFilesLists:		 ARRAY[1..12]  OF ST_FindFileEntry;
+	fbFileCopy:			FB_FileCopy;
+	fbCreateDir:			FB_CreateDir;
+	i: 					INT;
+	n:					INT;
+	bFindFileListState		: BOOL;
+	TimeCount:			 INT;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[RisingEdge(CLK:=bExecute OR bFindFileList);
+
+IF bBusy THEN
+	TimeCount:=TimeCount+1;
+END_IF
+
+CASE Step OF
+	0:	(* do nothing *)
+		IF RisingEdge.Q  AND NOT bBusy THEN
+			IF bFindFileList THEN
+				bFindFileListState:=TRUE;
+				bBusy := TRUE;
+				Step := 40;
+			ELSE
+				bFindFileListState:=FALSE;
+				IF DirectoryName=''
+				OR FileType=''
+				OR srcPathName=''
+				OR destPathName='' THEN		(*Input parameter error*)
+					bError:=TRUE;
+					nErrId:=4;
+				ELSE
+					bBusy := TRUE;
+					bError:= FALSE;
+					TimeCount:=0;
+					nErrId:=0;
+					Step := 10;
+				END_IF
+			END_IF
+		END_IF
+
+	10:	(* find source dir*)
+		fbEnumFindFileEntry
+			(
+			sNetId:='' , 
+			sPathName:=CONCAT(srcPathName,DirectoryName),
+			eCmd:=eEnumCmd_First ,
+			bExecute:=TRUE ,
+			tTimeout:=T#10s ,
+			);
+		IF NOT  fbEnumFindFileEntry.bBusy THEN
+			IF NOT  fbEnumFindFileEntry.bEOE THEN		(*target dir is exist*)
+				Step := 20;
+			ELSE										(*target dir no exist*)
+				bError:=TRUE;
+				nErrId:=1;		(*ErrId: no find source dir*)
+				Step:=70;
+			END_IF
+			fbEnumFindFileEntry(bExecute:=FALSE);
+		END_IF
+
+	11:	(*Wait*)
+		IF bContinueWhenErr OR bCancelWhenErr THEN
+			bError:=FALSE;
+			nErrId:=0;
+			Step:=0;
+		END_IF
+
+	20:	(*find Target Dir*)
+		fbEnumFindFileEntry
+			(
+			sNetId:='' , 
+			sPathName:=CONCAT(destPathName,DirectoryName),
+			eCmd:=eEnumCmd_First ,
+			bExecute:=TRUE ,
+			tTimeout:=T#10s ,
+			);
+		IF NOT  fbEnumFindFileEntry.bBusy THEN
+			IF NOT  fbEnumFindFileEntry.bEOE THEN	(*target dir is exist*)
+				Step := 40;
+			ELSE									(*target dir no exist*)
+				Step:=30;
+			END_IF
+			fbEnumFindFileEntry(bExecute:=FALSE);
+		END_IF
+
+	30:	(*createt dir  *)
+		fbCreateDir
+			(
+			sNetId:='',
+			sPathName:= CONCAT(destPathName,DirectoryName),
+			ePath:= PATH_GENERIC,
+			bExecute:=TRUE,
+			tTimeout:=t#10s
+			);
+		IF NOT fbCreateDir.bBusy THEN
+			fbCreateDir(bExecute:=FALSE);
+			Step:=40;
+		END_IF
+
+	40:	(*Find source FileList*)
+		fbFindFileList
+			(
+			sNetID:='',
+			sPathName:=CONCAT(CONCAT(CONCAT(srcPathName,DirectoryName),'\*.'),FileType),
+			eCmd:= eEnumCmd_First,
+			pFindList:= ADR(srcFilesLists),
+			cbFindList:=SIZEOF(srcFilesLists),
+			bExecute:= TRUE ,
+			tTimeout:=t#10s
+			);
+		IF NOT fbFindFileList.bBusy THEN
+			fbFindFileList(bExecute:=FALSE);
+			IF bFindFileList OR bFindFileListState THEN
+				Step:=70;
+			ELSE
+				Step:=41;
+			END_IF
+		END_IF
+
+	41:	(*Find target FileList*)
+		fbFindFileList
+			(
+			sNetID:='',
+			sPathName:=CONCAT(CONCAT(CONCAT(destPathName,DirectoryName),'\*.'),FileType),
+			eCmd:= eEnumCmd_First,
+			pFindList:= ADR(destFilesLists),
+			cbFindList:=SIZEOF(destFilesLists),
+			bExecute:= TRUE ,
+			tTimeout:=t#10s
+			);
+		IF NOT fbFindFileList.bBusy THEN
+			fbFindFileList(bExecute:=FALSE);
+			Step:=50;
+			i:=1;
+		END_IF
+
+
+	50:	(*check no same mane file*)
+		IF srcFilesLists[i].sFileName='' THEN
+			IF i>=15 THEN
+				i:=1;
+				Step:=70;
+			ELSE
+				i:=i+1;
+			END_IF
+		ELSE
+			FOR n:=1 TO 15 DO
+				IF destFilesLists[n].sFileName =  srcFilesLists[i].sFileName THEN
+					bError:=TRUE;
+					nErrId:=3;
+				END_IF
+			END_FOR
+			IF  bError THEN			(*if exiest same file *)
+				IF bContinueWhenErr THEN
+					Step:=60;
+					bError:=FALSE;
+					nErrId:=0;
+				ELSIF bCancelWhenErr THEN
+					i:=i+1;
+					bError:=FALSE;
+					nErrId:=0;
+				END_IF
+			ELSE					(*no same file *)
+				fbFileCopy
+					(
+					srcNetId:='' ,
+					srcFileName:=CONCAT(CONCAT(CONCAT(srcPathName,DirectoryName),'\'),srcFilesLists[i].sFileName) ,
+					cbReadLen:=srcFilesLists[i].fileSize.dwLowPart,
+					destNetId:='' ,
+					destFileName:=CONCAT(CONCAT(CONCAT(destPathName,DirectoryName),'\'),srcFilesLists[i].sFileName) ,
+					bExecute:=TRUE ,
+					tAdsTimeOut:=T#10s ,
+					);
+				Step:=60;
+			END_IF
+		END_IF
+
+	60:	(*copy*)
+		fbFileCopy();
+		IF NOT fbFileCopy.bBusy THEN
+			fbFileCopy(bExecute:=FALSE);
+			IF i>=15 THEN
+				i:=1;
+				Step:=70;
+			ELSE
+				i:=i+1;
+				Step:=50;
+			END_IF
+		END_IF
+
+	70:	(*finish*)
+		bFindFileListState:=FALSE;
+		bBusy := FALSE;
+		Step:=0;
+
+END_CASE]]></ST>
+    </Implementation>
+    <LineIds Name="FB_DirectoryCopy">
+      <LineId Id="40" Count="186" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

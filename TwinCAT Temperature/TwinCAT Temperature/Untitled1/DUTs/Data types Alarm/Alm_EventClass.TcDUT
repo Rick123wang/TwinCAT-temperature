@@ -1,0 +1,17 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <DUT Name="Alm_EventClass" Id="{61fc845a-2932-42ab-9de3-3e20b401e8d3}">
+    <Declaration><![CDATA[TYPE Alm_EventClass :
+(
+    NoAlarm                  :=0,(*无警报*)
+    Message_1      :=1,(*信息*)
+    Event_2            :=2,(*事件*)
+    non_3                        :=3,(*暂无*)
+    non_4                       :=4,(*暂无*)
+    non_5                         :=5,(*暂无*)
+    Alarm_6          :=6,(*不停机警报*)
+    Stop_7                :=7(*停机警报*)
+);
+END_TYPE]]></Declaration>
+  </DUT>
+</TcPlcObject>

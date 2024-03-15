@@ -1,0 +1,227 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <POU Name="data_save" Id="{ae5d3a2f-9a91-416c-83b2-011e18b11aa8}" SpecialFunc="None">
+    <Declaration><![CDATA[PROGRAM data_save
+VAR
+	T_heat			:INT;
+	
+	fbSysTime		:GETSYSTEMTIME;
+	tFileTime		:T_FILETIME;  	
+	tNow			:TIMESTRUCT; 
+	fbFormatString 	:FB_FormatString;
+	fbFormatString1	:FB_FormatString;
+	tNowTime		:T_MaxString ;
+	sPathFormat		:T_MaxString := '%s\%d__%d_%d_%d_%d_%d.csv';	
+	tTimeFormat		:T_MaxString := '%d__%d_%d_%d_%d_%d';		
+	wHour: WORD;
+	sPath: STRING(255);
+	bWrite			:BOOL;//写入触发
+	sNetId			: T_AmsNetId := '';	
+	sFileName		: T_MaxString ;
+	sCSVLine		: T_MaxString := '';
+	sCSVField		: T_MaxString := '';
+	bBusy			: BOOL;
+	bError			: BOOL;
+	nErrId			: UDINT;
+	nRow	 		: UDINT 	:= 0;
+	nColumn			: UDINT 	:= 0;
+	hFile			: UINT		:= 0;
+	step			: DWORD 	:= 0;
+	fbFileOpen		: FB_FileOpen;
+	fbFileClose		: FB_FileClose;
+	fbFilePuts		: FB_FilePuts;
+	fbWriter		: FB_CSVMemBufferWriter;
+	database		: ARRAY[0..MAX_CSV_ROWS, 0..MAX_CSV_COLUMNS ] OF STRING(MAX_CSV_FIELD_LENGTH);
+	fbCycletime		:TON;
+	rCurrentMaster		:LREAL;
+	rTorque			:LREAL;
+	rSpeed			:LREAL;
+END_VAR
+VAR CONSTANT
+	tSamplefrequency:TIME:=T#1S;
+	MAX_CSV_ROWS 			: UDINT :=600;//写入最大行数
+	MAX_CSV_COLUMNS 		: UDINT :=3;	//写入最大列数0~3
+	MAX_CSV_FIELD_LENGTH	: UDINT :=20000;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[DEFAULT_CSV_FIELD_SEP := 16#2C;
+fbSysTime(timeLoDW=>tFileTime.dwLowDateTime , timeHiDW=> tFileTime.dwHighDateTime);
+tNow := FILETIME_TO_SYSTEMTIME(tFileTime);
+wHour:=tNow.wHour+8;
+sPath:='C:\Users\Administrator\Desktop\Temperature';
+T_heat:=REAL_TO_INT(Line_chart.Tnow_time);
+
+fbFormatString(
+	sFormat:=sPathFormat, 
+	arg1:=F_STRING(sPath) , 
+	arg2:= F_WORD(tNow.wYear), 
+	arg3:= F_WORD(tNow.wMonth), 
+	arg4:= F_WORD(tNow.wDay), 
+	arg5:= F_WORD(wHour), 
+	arg6:= F_WORD(tNow.wMinute), 
+	arg7:= F_WORD(tNow.wSecond),  
+	sOut=> sFileName);
+fbFormatString1(
+	sFormat:=tTimeFormat, 
+	//arg1:=F_STRING(sPath) , 
+	arg1:= F_WORD(tNow.wYear), 
+	arg2:= F_WORD(tNow.wMonth), 
+	arg3:= F_WORD(tNow.wDay), 
+	arg4:= F_WORD(wHour), 
+	arg5:= F_WORD(tNow.wMinute), 
+	arg6:= F_WORD(tNow.wSecond),  
+	sOut=> tNowTime);	
+IF tNow.wYear = 0 THEN
+	RETURN;
+END_IF
+IF main.clk1.Q THEN
+bWrite:=TRUE;
+END_IF
+CASE step OF
+0:
+IF bWrite THEN
+	bWrite 	:= FALSE;
+	bBusy 	:= TRUE;
+	bError	:= FALSE;
+	nErrId	:= 0;
+	hFile	:= 0;
+	nRow	:= 0;
+	nColumn	:= 0;
+	step 	:= 1;
+END_IF
+1:
+	fbFileOpen(  bExecute := FALSE  );
+	fbFileOpen( sNetId := sNetId, sPathName := sFileName, nMode := FOPEN_MODEWRITE OR FOPEN_MODETEXT,
+				ePath := PATH_GENERIC, bExecute := TRUE );
+	step := 2;
+2:
+	fbFileOpen( bExecute := FALSE, bError => bError, nErrID => nErrID, hFile => hFile );//err_ID 1804无法找到存储路径
+IF NOT fbFileOpen.bBusy THEN
+IF NOT fbFileOpen.bError THEN
+	step := 3;
+ELSE
+	step := 100;
+END_IF
+END_IF
+3:
+IF NOT fbCycletime.Q AND main.bStartTemControl THEN
+	fbCycletime(IN:=TRUE , PT:=tSamplefrequency , Q=> , ET=> );
+ELSE 
+IF nRow<>0 AND main.bStartTemControl THEN
+	fbCycletime(IN:=FALSE , PT:=tSamplefrequency , Q=> , ET=> );
+	sCSVLine := '';
+	fbWriter.eCmd := eEnumCmd_First;
+IF nRow <= MAX_CSV_ROWS AND main.bStartTemControl THEN
+FOR nColumn:=0 TO MAX_CSV_COLUMNS BY 1 DO
+	database[nRow,0]:=LREAL_TO_STRING(T_heat);//raw data
+	database[nRow,1]:=LREAL_TO_STRING(Tem_Act_1);
+	database[nRow,2]:=LREAL_TO_STRING(Tem_control_1);
+	database[nRow,3]:=tNowTime;		//LREAL_TO_STRING(tNow.wSecond);
+	sCSVField := STRING_TO_CSVFIELD( database[ nRow, nColumn ], FALSE );
+	fbWriter( 	pBuffer := ADR( sCSVLine ), 
+				cbBuffer := SIZEOF( sCSVLine ) - 1,
+				putValue := sCSVField,
+				pValue := 0, 
+				cbValue := 0,
+				bCRLF := ( nColumn = MAX_CSV_COLUMNS ) );
+IF fbWriter.bOk THEN
+	fbWriter.eCmd := eEnumCmd_Next;
+ELSE
+	step := 100;
+RETURN;
+END_IF
+IF RIGHT( sCSVLine, 2 ) = '$R$L' THEN
+	sCSVLine := REPLACE( sCSVLine, '$L', 2, LEN( sCSVLine ) - 1 );
+END_IF	
+END_FOR
+	nRow := nRow + 1;
+	step := 4;
+ELSE
+	step := 10;
+END_IF
+ELSE
+	sCSVLine := '';
+	fbWriter.eCmd := eEnumCmd_First;
+	database[0,0]:='HeatingTime';
+	database[0,1]:='Compare_Tem';
+	database[0,2]:='Control_Tem';
+	database[0,3]:='Time';
+FOR nColumn:=0 TO MAX_CSV_COLUMNS BY 1 DO
+	sCSVField := STRING_TO_CSVFIELD( database[ nRow, nColumn ], FALSE );
+	fbWriter( 	pBuffer := ADR( sCSVLine ), 
+				cbBuffer := SIZEOF( sCSVLine ) - 1, 
+				putValue := sCSVField, 
+				pValue := 0, cbValue := 0,
+				bCRLF := ( nColumn = MAX_CSV_COLUMNS ) );
+IF fbWriter.bOk THEN
+	fbWriter.eCmd := eEnumCmd_Next;
+ELSE
+	step := 100;
+RETURN;
+END_IF
+IF RIGHT( sCSVLine, 2 ) = '$R$L' THEN
+	sCSVLine := REPLACE( sCSVLine, '$L', 2, LEN( sCSVLine ) - 1 );
+END_IF
+END_FOR
+	nRow := nRow + 1;
+	step := 4;
+END_IF
+END_IF
+	4:	
+	fbFilePuts( bExecute := FALSE );
+	fbFilePuts( sNetId := sNetId, hFile := hFile, sLine := sCSVLine, bExecute := TRUE );
+	step := 5;
+	5:
+	fbFilePuts( bExecute := FALSE, bError => bError, nErrID => nErrID );
+IF NOT fbFilePuts.bBusy THEN
+IF NOT fbFilePuts.bError THEN
+	step := 3;
+ELSE
+	step := 100;
+END_IF
+END_IF
+	10:	
+	fbFileClose( bExecute := FALSE );
+	fbFileClose( sNetId := sNetId, hFile := hFile, bExecute := TRUE );
+	step := 11;
+	11:
+	fbFileClose( bExecute := FALSE, bError => bError, nErrID => nErrID );
+IF ( NOT fbFileClose.bBusy ) THEN
+	hFile := 0;
+	step := 100;
+END_IF
+	100: 
+IF ( hFile <> 0 ) THEN
+	step := 10; 
+ELSE
+	bBusy := FALSE;
+	step := 0;
+	bWrite:=TRUE;//循环写入
+END_IF
+END_CASE
+]]></ST>
+    </Implementation>
+    <LineIds Name="data_save">
+      <LineId Id="6" Count="4" />
+      <LineId Id="380" Count="0" />
+      <LineId Id="384" Count="0" />
+      <LineId Id="11" Count="9" />
+      <LineId Id="328" Count="8" />
+      <LineId Id="326" Count="0" />
+      <LineId Id="21" Count="1" />
+      <LineId Id="2" Count="0" />
+      <LineId Id="338" Count="0" />
+      <LineId Id="288" Count="0" />
+      <LineId Id="339" Count="0" />
+      <LineId Id="49" Count="38" />
+      <LineId Id="175" Count="0" />
+      <LineId Id="88" Count="27" />
+      <LineId Id="177" Count="0" />
+      <LineId Id="116" Count="49" />
+      <LineId Id="251" Count="0" />
+      <LineId Id="166" Count="0" />
+      <LineId Id="48" Count="0" />
+      <LineId Id="214" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

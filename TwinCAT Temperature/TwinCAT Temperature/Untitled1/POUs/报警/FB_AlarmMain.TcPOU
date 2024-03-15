@@ -1,0 +1,258 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <POU Name="FB_AlarmMain" Id="{d5d14d3f-82ef-4c9e-b253-3470708dd5d5}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION_BLOCK FB_AlarmMAIN(*报警主程序,请调用一次*)
+(*===========================================
+by Swen 陈颂文
+GuangZhou
+2009-08-26
+===========================================*)
+
+VAR_INPUT
+END_VAR
+VAR_OUTPUT
+	EventId:						INT;(*报警号.有报警时会轮询输出有报警的id号*)
+   	EventMessage:                  	WSTRING;(*报警信息.有报警时会轮询输出有报警的id信息*)
+	EventAlive:						BOOL;(*当前有报警*)
+	EventClass:						Alm_EventClass;(*当前的最大报警等级*)
+  	NoStopAlarm:                  	BOOL;(*有小于7的报警,不停机报警*)
+   	StopAlarm:                     	BOOL;(*有大于6的报警,停机报警*)
+   	ShowlampOn:                    	BOOL;(*报警灯亮*)
+   	FalshLamp:                   	BOOL;(*报警灯闪亮.有报警时该信号闪烁输出*)
+
+	AutoRunOff:					BOOL;(*退出自动循环*)
+	AlarmAction1:				BOOL;(*用户定义报警动作*)(*例如定义为黄灯亮,则有报警号有触发时,该输出信号为1*)
+	AlarmAction2:				BOOL;(*用户定义报警动作*)
+	AlarmAction3:				BOOL;(*用户定义报警动作*)
+	AlarmAction4:				BOOL;(*用户定义报警动作*)
+	AlarmAction5:				BOOL;(*用户定义报警动作*)
+	AlarmAction6:				BOOL;(*用户定义报警动作*)
+	AlarmAction7:				BOOL;(*用户定义报警动作*)
+	AlarmAction8:				BOOL;(*用户定义报警动作*)
+END_VAR
+VAR
+	nConut:                                				INT;
+   	fbFreePluse:                        				TON;
+	m:                                          		INT;
+	Resul:                                   			INT;
+	n:                                            		INT;
+	R_TRIG_AlarmShow:        							R_TRIG;
+	R_TRIG_AlarmAlive:          						R_TRIG;
+	FB_FreePluse_AlarmShow: 							TON;
+	FB_FreePluse_AlarmAlive: 							TON;
+	F_TRIG_bHMIClearHistory: 							F_TRIG;
+	F_TRIG_EventAlive: 									F_TRIG;
+	InstLocalSystemTime:								FB_LocalSystemTime;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[(*Set Signal*)
+ 	EventAlive:=ShowlampOn:=AlarmAction1:=AlarmAction2:=AlarmAction3:=FALSE;
+  	AlarmAction4:=AlarmAction5:=AlarmAction6:=AlarmAction7:=AlarmAction8:=FALSE;
+	AutoRunOff :=	FALSE;(*退出自动循环*)
+   	EventClass :=	0;
+
+FOR nConut :=cnAlarmFirst TO cnAlarmLast DO
+	    EventAlive :=	EventAlive OR AlarmActionArray[nConut].EventAlive;
+	    ShowlampOn:=	ShowlampOn OR AlarmActionArray[nConut].ShowlampOn;
+	    AlarmAction1:=	AlarmAction1 OR AlarmActionArray[nConut].AlarmAction1;
+	    AlarmAction2:=	AlarmAction2 OR AlarmActionArray[nConut].AlarmAction2;
+	    AlarmAction3:=	AlarmAction3 OR AlarmActionArray[nConut].AlarmAction3;
+	    AlarmAction4:=	AlarmAction4 OR AlarmActionArray[nConut].AlarmAction4;
+	    AlarmAction5:=	AlarmAction5 OR AlarmActionArray[nConut].AlarmAction5;
+	    AlarmAction6:=	AlarmAction6 OR AlarmActionArray[nConut].AlarmAction6;
+	    AlarmAction7:=	AlarmAction7 OR AlarmActionArray[nConut].AlarmAction7;
+	    AlarmAction8:=	AlarmAction8 OR AlarmActionArray[nConut].AlarmAction8;
+	    AutoRunOff :=	AutoRunOff 	OR AlarmActionArray[nConut].AutoRunOff;
+	    EventClass  :=	MAX(EventClass,AlarmActionArray[nConut].EventClass);
+END_FOR
+
+(*Flash lamp*)
+R_TRIG_AlarmShow(CLK:=ShowlampOn  );
+IF ShowlampOn THEN
+	IF R_TRIG_AlarmShow.Q THEN
+		fbFreePluse(IN:=FALSE);
+		FalshLamp:=TRUE;
+	END_IF
+	fbFreePluse(IN:=NOT fbFreePluse.Q,PT:=T#1S);
+	IF fbFreePluse.Q THEN
+		FalshLamp:=NOT FalshLamp;
+	END_IF
+ELSE
+	FalshLamp:=FALSE;
+END_IF
+
+
+(*Action*)
+AlarmAlive();
+AlarmHMI();
+AlarmShow();
+
+(*Set Action*)
+IF EventAlive THEN
+     IF EventClass>6 THEN
+         StopAlarm:=TRUE;
+         NoStopAlarm:=FALSE;
+     ELSE
+         StopAlarm:=FALSE;
+         NoStopAlarm:=TRUE;
+    END_IF
+ELSE
+    StopAlarm:=FALSE;
+    NoStopAlarm:=FALSE;
+    EventId:=0;
+    EventMessage:="";
+    Alm_iHMIAlarmID:=0;
+END_IF
+
+	//获取系统时间
+	InstLocalSystemTime(
+		sNetID		:= '',
+		bEnable		:= TRUE,
+		dwCycle		:= 1,
+		systemTime	=> tActSystemTime,
+		);
+
+
+
+
+]]></ST>
+    </Implementation>
+    <Action Name="AlarmAlive" Id="{f482879f-2081-4da4-adf4-aec30606e42f}">
+      <Implementation>
+        <ST><![CDATA[
+(*-----------------------------------当前报警列表显示-----------------------------*)
+R_TRIG_AlarmAlive(CLK:=EventAlive);
+IF EventAlive THEN
+	IF R_TRIG_AlarmAlive.Q THEN
+   	 	FB_FreePluse_AlarmAlive(In:=FALSE);
+	END_IF
+    FB_FreePluse_AlarmAlive(In:= NOT FB_FreePluse_AlarmAlive.Q,PT:=T#1S );
+    IF FB_FreePluse_AlarmAlive.Q
+	OR R_TRIG_AlarmAlive.Q THEN
+         n:=cnAlarmFirst;
+         m:=cnAlmActiveFirst;
+          FOR n:=cnAlarmFirst TO cnAlarmLast DO
+               IF AlarmActionArray[n].EventAlive THEN
+                    AlarmActiveArray[m].EventId                  :=AlarmActionArray[n].EventId;
+                   	AlarmActiveArray[m].EventMessage    :=		AlarmActionArray[n].EventMessage;						
+                    AlarmActiveArray[m].EventTime            :=AlarmActionArray[n].EventTime;
+                  	m:=m+1;
+                    IF m>cnAlmActiveLast THEN
+                       n:=32766;  (*exit FOR*)
+                    END_IF
+               END_IF
+         END_FOR
+         IF m<cnAlmActiveLast THEN
+               FOR n:=m TO cnAlmActiveLast DO
+                   AlarmActiveArray[n].EventId:=0;
+                 	AlarmActiveArray[n].EventMessage:="";
+                   	AlarmActiveArray[n].EventTime:=DT#2000-01-01-00:00;
+             END_FOR
+          END_IF
+    END_IF
+END_IF
+
+F_TRIG_EventAlive(CLK:=EventAlive );
+IF F_TRIG_EventAlive.Q THEN
+	FOR n:=cnAlmActiveFirst TO cnAlmActiveLast DO 
+		AlarmActiveArray[n].EventId:=0;
+		AlarmActiveArray[n].EventMessage:="";
+		AlarmActiveArray[n].EventTime:=DT#2016-01-01-00:00;
+	END_FOR
+END_IF
+
+
+
+
+
+
+
+
+
+]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="AlarmHMI" Id="{b3d5d973-5d3c-4081-b7a6-d37764470fb2}">
+      <Implementation>
+        <ST><![CDATA[
+
+(*``````````````````````````````````````````清除历史报警`````````````````````````````````````*)
+F_TRIG_bHMIClearHistory(CLK:=Alm_bHMIClearHistory  );
+IF F_TRIG_bHMIClearHistory.Q THEN
+       FOR n:=cnAlmHistoryFirst TO cnAlmHistoryLast DO
+             AlarmHistoryArray[n].EventId:=0;
+             AlarmHistoryArray[n].EventMessage:="";
+             AlarmHistoryArray[n].EventTime:=DT#2016-01-01-00:00;
+        END_FOR
+        Alm_HistoryAlarmNum:=0;
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="AlarmShow" Id="{b84b3a39-8311-4f12-9541-aeaefac3a605}">
+      <Implementation>
+        <ST><![CDATA[
+(*-------------------------------跑马灯显示报警---------------------------------*)
+FB_FreePluse_AlarmShow(IN:=NOT FB_FreePluse_AlarmShow.Q,PT:=T#1S );
+IF FB_FreePluse_AlarmShow.Q 
+OR R_TRIG_AlarmAlive.Q THEN
+      n:=EventId;
+      	FOR m:=n+1 TO cnAlarmLast DO
+            IF AlarmActionArray[m].EventAlive THEN
+                   n:=m;
+                   m:=cnAlarmLast+10;
+             END_IF;
+      	END_FOR;
+    	IF n<>EventId THEN
+        	Resul:=n;     
+   		ELSE
+          	FOR m:=cnAlarmFirst TO cnAlarmLast DO
+             	IF AlarmActionArray[m].EventAlive THEN
+                 	n:=m;
+                 	m:=cnAlarmLast+10;
+              	END_IF;
+          	END_FOR;
+          	Resul:=n;
+      	END_IF
+END_IF
+
+Alm_iHMIAlarmID:=EventId:=Resul;
+IF EventId<=cnAlarmLast
+AND EventId>= cnAlarmFirst THEN
+	gwsActEventMsg:=EventMessage:=AlarmActionArray[EventId].EventMessage;
+ELSE
+	gwsActEventMsg:=EventMessage:="";	
+END_IF
+
+
+]]></ST>
+      </Implementation>
+    </Action>
+    <LineIds Name="FB_AlarmMain">
+      <LineId Id="3" Count="39" />
+      <LineId Id="115" Count="0" />
+      <LineId Id="43" Count="9" />
+      <LineId Id="54" Count="18" />
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_AlarmMain.AlarmAlive">
+      <LineId Id="2" Count="14" />
+      <LineId Id="58" Count="0" />
+      <LineId Id="18" Count="33" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_AlarmMain.AlarmHMI">
+      <LineId Id="2" Count="10" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_AlarmMain.AlarmShow">
+      <LineId Id="2" Count="25" />
+      <LineId Id="33" Count="0" />
+      <LineId Id="32" Count="0" />
+      <LineId Id="31" Count="0" />
+      <LineId Id="35" Count="1" />
+      <LineId Id="34" Count="0" />
+      <LineId Id="29" Count="1" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

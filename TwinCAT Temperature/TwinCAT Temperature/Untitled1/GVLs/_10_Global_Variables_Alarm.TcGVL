@@ -1,0 +1,68 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <GVL Name="_10_Global_Variables_Alarm" Id="{aab45825-30f5-4e41-b378-cdd183d8d72b}">
+    <Declaration><![CDATA[{attribute 'Tc2GvlVarNames'}
+
+VAR_GLOBAL(*报警库设置*)
+
+	gbAlarm_NoStopAlarm,
+	gbAlarm_StopAlarm ,
+	gbAlarm_ShowlampOn ,
+	gbAlarm_FalshLamp ,
+	gbAlarm_NeedPause ,
+	gbAlarm_ExtruderOff ,
+	gbAlarm_HydraulicOff ,
+	gbAlarm_HeatingOff ,
+	gbAlarm_FillingOff ,
+	gbAlarm_ServoMotorOff ,
+	gbAlarm_AutoRunOff ,
+	gbAlarm_AlarmAction1 ,
+	gbAlarm_AlarmAction2 ,
+	gbAlarm_AlarmAction3 ,
+	gbAlarm_AlarmAction4 ,
+	gbAlarm_AlarmAction5 ,
+	gbAlarm_AlarmAction6 ,
+	gbAlarm_AlarmAction7 ,
+	gbAlarm_AlarmAction8	:	BOOL;
+
+	gbHMIAlarmReset:		BOOL;
+	AlarmID:				ST_AlarmID;
+	//fbSetAlarm:				ARRAY[0..cnAlarmLast ] OF FB_SetAlarm;(*报警功能块数组*)
+	HMI_AlarmActive:		ARRAY[cnAlarmFirst..cnAlarmLast ] OF BOOL;(*当前激活的报警数组*)(*给HMI用*)
+
+END_VAR
+
+VAR_GLOBAL
+	  	Alm_ActiveAlarmNum:             	INT;(*当前激活警报的数量*)
+	 	Alm_HistoryAlarmNum:           		INT;(*历史警报的数量*)
+	 	AlarmActionArray:					ARRAY [cnAlarmFirst..cnAlarmLast] OF Alm_AlarmType;(*记录所有警报状态的数组*)
+		AlarmActiveArray:					ARRAY [cnAlmActiveFirst..cnAlmActiveLast] OF Alm_AlarmHistoryType;(*记录已激活警报状态的数组*)
+		fbSetAlarm:							ARRAY[cnAlarmFirst..cnAlarmLast] OF FB_SetAlarm;
+
+	  	Alm_bHMIClearHistory:            	BOOL;(*清除历史报警*)
+		Alm_bBtReset:						BOOL;//报警清除按钮
+	  	Alm_iHMIAlarmID:                 	INT;(*当前报警id,给循环显示用*)
+		tActSystemTime: 					TIMESTRUCT;//当前系统时间
+		gwsActEventMsg:						WSTRING;//当前显示的报警信息，跑马灯形式
+		gsWriteToLog:						STRING;//当前需要添加到报警历史文件的信息
+		CurrentLanguage:					STRING;
+END_VAR
+
+VAR_GLOBAL PERSISTENT(*断电保存型变量,历史报警*)
+	   	AlarmHistoryArray :				ARRAY [cnAlmHistoryFirst..cnAlmHistoryLast] OF Alm_AlarmHistoryType;(*记录历史警报状态的数组*)
+END_VAR
+
+(*
+-------------------------------------在调用的程序里请定义如下变量:----------------------------------------------
+*)
+VAR_GLOBAL CONSTANT
+		cnAlarmFirst:                             	INT:=1;(*报警的最小id号*)(*默认为1，不需改动*)
+		cnAlarmLast:                             	INT:=50;(*报警的最大id号*)
+		cnAlmActiveFirst:                       	INT:=1;(*当前激活的警报最小id号*)(*默认为1，不需改动*)
+		cnAlmActiveLast:                       		INT:=20;(*当前激活的警报最大id号*)
+		cnAlmHistoryFirst:                    		INT:=1;(*历史警报最小id号*)(*默认为1，不需改动*)
+		cnAlmHistoryLast:                   	 	INT:=200;(*历史警报最大id号*)
+END_VAR
+]]></Declaration>
+  </GVL>
+</TcPlcObject>

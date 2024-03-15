@@ -1,0 +1,45 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <POU Name="EventGrid" Id="{2c02faee-bff7-4e64-a9cf-422fb345f0c4}" SpecialFunc="None">
+    <Declaration><![CDATA[PROGRAM EventGrid
+VAR
+	fbEventlogger : FB_TcEventLogger;
+	fbAlarm: FB_TcAlarm;
+	fbMessage: FB_TcMessage;
+	bAlarm: BOOL;
+	bMessage : BOOL;
+	bIsInitalized: BOOL;
+	bClearAlarm: BOOL;
+	bConfirmAlarm: BOOL;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[IF NOT bIsInitalized THEN
+	bIsInitalized := TRUE;
+	fbMessage.CreateEx(TC_Events.Sinterstar_Mini_EventClass.Sinterstar_Mini_EventClassEvent2, 0);
+	fbAlarm.CreateEx(TC_Events.Sinterstar_Mini_EventClass.Sinterstar_Mini_EventClassEvent2, TRUE, 0);
+END_IF
+
+IF bMessage THEN
+	bMessage := FALSE;
+	fbMessage.Send(0);
+END_IF
+
+IF bAlarm THEN
+	bAlarm := FALSE;
+	fbAlarm.Raise(0);
+END_IF
+
+IF bClearAlarm THEN
+	bClearAlarm := FALSE;
+	fbAlarm.Clear(0, FALSE);
+END_IF]]></ST>
+    </Implementation>
+    <LineIds Name="EventGrid">
+      <LineId Id="17" Count="1" />
+      <LineId Id="36" Count="0" />
+      <LineId Id="20" Count="15" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

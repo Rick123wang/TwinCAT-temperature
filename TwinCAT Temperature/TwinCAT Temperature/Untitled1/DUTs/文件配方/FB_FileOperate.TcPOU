@@ -1,0 +1,126 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <POU Name="FB_FileOperate" Id="{0588c5fe-731f-457f-a87a-23857d809572}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION_BLOCK FB_FileOperate
+VAR_INPUT
+END_VAR
+VAR_OUTPUT
+END_VAR
+VAR
+	Step: USINT := 0;								(* Step of the FB *)
+	Index: USINT := 0;								(* Index for variable to be loaded or saved*)
+	FB_XmlSrvReadByName: FB_XmlSrvReadByName;		(* Read the variable by name in the xml file*)
+	FB_FormatString: FB_FormatString;				(* Convert the name to configed format string *)
+	FB_XmlSrvWriteByName: FB_XmlSrvWriteByName;		(* Save the variable value by name in the XML file *)
+END_VAR
+VAR_IN_OUT
+	CMD: File_com_typ;		(* Command of the file operatation *)
+END_VAR
+VAR CONSTANT
+	COMMAND: USINT := 0;		(* *)
+	FILE_SAVE: USINT := 10;
+	FILE_SAVE_PROCESS: USINT := 11;
+
+	FILE_LOAD: USINT := 20;
+	FILE_LOAD_PROCESS: USINT := 21;
+
+	FILE_DELETE: USINT := 90;
+
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[CASE Step OF
+	COMMAND:
+		CMD.bBusy := FALSE;
+		IF CMD.File_load THEN
+			Index 	:= 0;
+			IF CMD.Var_Name[Index] <> '' THEN
+				Step 	:= FILE_LOAD;
+				CMD.bBusy := TRUE;
+				CMD.File_load := 0;
+			ELSE
+			 	CMD.ErrorID := 10001;		(*No variable name config*)
+			END_IF
+		END_IF
+
+		IF CMD.File_save THEN
+			Index 	:= 0;
+			IF CMD.Var_Name[Index] <> '' THEN
+				Step := FILE_SAVE;
+				CMD.bBusy := TRUE;
+				CMD.File_save := 0;
+			ELSE
+			 	CMD.ErrorID := 10001;		(*No variable name config*)
+			END_IF
+		END_IF
+
+	FILE_LOAD:
+		(* Set the name of the Global variables *)
+		FB_FormatString(sFormat:= '.%s', arg1:= F_STRING(CMD.Var_Name[Index]));
+		FB_XmlSrvReadByName.sSymName := FB_FormatString.sOut;
+		(* Set the format name of the Global variables in the xml file*)
+		FB_FormatString(sFormat:= '/dataentry/%s', arg1:= F_STRING(CMD.Var_Name[Index]));
+		FB_XmlSrvReadByName.sXPath := FB_FormatString.sOut;
+		(* Set the file path name *)
+		FB_FormatString(sFormat:= '%s%s', arg1:= F_STRING(CMD.Device), arg2 := F_STRING(CMD.FileName_active));
+		FB_XmlSrvReadByName.sFilePath := FB_FormatString.sOut;
+
+		FB_XmlSrvReadByName(
+			nMode:= XMLSRV_ADDMISSING,
+			bExecute:= TRUE,
+		 );
+		Index := Index + 1;
+		Step := FILE_LOAD_PROCESS;
+
+
+	FILE_LOAD_PROCESS:
+		FB_XmlSrvReadByName(bExecute:= FALSE );
+
+		IF NOT FB_XmlSrvReadByName.bBusy THEN
+			IF CMD.Var_Name[Index] <> '' THEN
+				Step 	:= FILE_LOAD;
+			ELSE
+			 	Step := COMMAND;
+
+			END_IF
+
+		END_IF
+		CMD.ErrorID := FB_XmlSrvReadByName.nErrId;
+
+	FILE_SAVE:
+		(* Set the name of the Global variables *)
+		FB_FormatString(sFormat:= '.%s', arg1:= F_STRING(CMD.Var_Name[Index]));
+		FB_XmlSrvWriteByName.sSymName := FB_FormatString.sOut;
+		(* Set the format name of the Global variables in the xml file*)
+		FB_FormatString(sFormat:= '/dataentry/%s', arg1:= F_STRING(CMD.Var_Name[Index]));
+		FB_XmlSrvWriteByName.sXPath := FB_FormatString.sOut;
+		(* Set the file path name *)
+		FB_FormatString(sFormat:= '%s%s', arg1:= F_STRING(CMD.Device), arg2 := F_STRING(CMD.FileName_save));
+		FB_XmlSrvWriteByName.sFilePath := FB_FormatString.sOut;
+
+		FB_XmlSrvWriteByName(
+			nMode:= XMLSRV_ADDMISSING,
+			bExecute:= TRUE,
+		 );
+		Index := Index + 1;
+		Step := FILE_SAVE_PROCESS;
+
+	FILE_SAVE_PROCESS:
+		FB_XmlSrvWriteByName(bExecute:= FALSE );
+
+		IF NOT FB_XmlSrvWriteByName.bBusy THEN
+			IF CMD.Var_Name[Index] <> '' THEN
+				Step 	:= FILE_SAVE;
+			ELSE
+			 	Step := COMMAND;
+
+			END_IF
+
+		END_IF
+		CMD.ErrorID := FB_XmlSrvWriteByName.nErrId;
+END_CASE]]></ST>
+    </Implementation>
+    <LineIds Name="FB_FileOperate">
+      <LineId Id="26" Count="89" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

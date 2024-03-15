@@ -1,0 +1,30 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <GVL Name="_12_Global_Variables_PeiFan" Id="{9f46d901-3402-4a8d-89d6-c44cd413e7c2}">
+    <Declaration><![CDATA[{attribute 'Tc2GvlVarNames'}
+VAR_GLOBAL CONSTANT(*配方*)
+	cnMaxRecepeNum:		INT:=25;
+END_VAR
+VAR_GLOBAL
+	vbtRecipeArr:				ARRAY[1..cnMaxRecepeNum] OF BOOL;
+	strRecipeArr:				ARRAY[1..cnMaxRecepeNum] OF STRING;
+	vbtFlash:					BOOL;
+	vbtLoad:					BOOL;
+	vbtSave:					BOOL;
+	vbtDel:						BOOL;
+	vbtLoadFromUSB:				BOOL;
+	vbtSaveToUSB:				BOOL;
+	ShowDiag: 					BOOL;
+	DiagIndex:					INT;
+	iSelectIndex:				INT;//当前选择的id号
+	vbtYes: 					BOOL;
+	vbtNo: 						BOOL;
+	strShowDiagName:			STRING;
+END_VAR
+VAR_GLOBAL PERSISTENT
+	strInputReceipeName AT%Q*:		STRING(30);(*需要保存到NovRam*)
+	strCurrentReceipeName AT%Q*:	STRING(30);(*需要保存到NovRam*)
+END_VAR
+]]></Declaration>
+  </GVL>
+</TcPlcObject>

@@ -1,0 +1,21 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <GVL Name="_04_Global_Variables_InOutput" Id="{77894fd3-57dd-43be-9edf-ce958829118e}">
+    <Declaration><![CDATA[{attribute 'Tc2GvlVarNames'}
+VAR_GLOBAL(*输入输出*)
+
+	(*程序用变量*)
+	stInput:				ST_Input;
+	stOutput:				ST_Output;
+
+	(*链接到硬件的变量*)
+	EL1889 AT%I*: 			ARRAY[1..20,1..16] OF BOOL;
+	EL2889 AT%Q*: 			ARRAY[1..20,1..16] OF BOOL;
+END_VAR
+
+
+
+
+]]></Declaration>
+  </GVL>
+</TcPlcObject>

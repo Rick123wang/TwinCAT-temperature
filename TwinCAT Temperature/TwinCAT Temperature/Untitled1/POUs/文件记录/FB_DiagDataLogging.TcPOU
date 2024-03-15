@@ -1,0 +1,513 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <POU Name="FB_DiagDataLogging" Id="{94ba4e60-54a3-4865-9077-6ac494030f04}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION_BLOCK FB_DiagDataLogging
+(*==================================================================
+历史文件夹操作
+By SwenChen
+at 20170809
+===================================================================*)
+VAR_INPUT
+	bInUse:							BOOL:=TRUE;(*是否使能功能*)
+	bCopyToUSB:						BOOL;(*把文件夹复制到u盘*)
+
+	b_DiagDataLog_AutoDelete:		BOOL:=TRUE;	(* Auto Deletion of Logged Files / highly recommended!	*)(*是否自动删除文件*)
+	n_DiagDataLog_KeepForWeeks:		INT:=4;
+
+	bDiagDataLogRunOn_WinCE:		BOOL:=FALSE;
+	cnst_DiagDataLogFilePath_XP:	STRING(255):='D:\';
+	cnst_DiagDataLogFilePath_CE:	STRING(255):='Hard Disk\';
+
+	cnst_USB_FilePath_XP:			STRING(255):='E:\';
+	cnst_USB_FilePath_CE:			STRING(255):='Hard Disk2\';
+
+	cnst_SubDir_DiagDataLog:		STRING(255):='DiagDataLog\';
+	cnst_FileName:					STRING(255):='Sym';(*文件的前缀名*)
+
+END_VAR
+VAR_IN_OUT
+	sInputString:					STRING;(*TC2只能是英文字符串，不能中文*)
+END_VAR
+VAR_OUTPUT
+	bBusyWriting:					BOOL;
+	sWriteData:						STRING;
+END_VAR
+VAR
+	nTaskIdx:						BYTE:=0;
+	fbGetTaskIdx:					GETCURTASKINDEX;
+	fCycleTime:						LREAL;
+
+	StartUp:						BOOL:=TRUE;
+	count:							INT;
+	dtemp:							DINT;
+	dtemp2:							DINT;
+	stemp:							STRING;
+	btemp:							BOOL;
+
+	aStringBuffer:					ARRAY[1..10] OF STRING;
+	sActUseingString:				STRING;
+	bInputDoWrite:					BOOL;
+
+	nWrState:						INT;
+	sWrite:							STRING(255);
+	stWrTime:						TIMESTRUCT;
+	fbFormat:						FB_FormatString;
+	fbOpen:							FB_FileOpen;
+	fbWrite:						FB_FileWrite;
+	fbClose:						FB_FileClose;
+
+	nState:							INT;
+	nEntries:						INT;
+	fbMakeDir:						FB_CreateDir;
+	fbGetTime:						NT_GetTime;
+	msecond:						UDINT;
+
+	delstep:						INT:=0;
+	CopyStep: 						INT:=0;
+	deldatestart:					TIMESTRUCT;
+	deldate:						TIMESTRUCT;
+	fbdelete:						FB_FileDelete;
+	fbDirectoryCopy:				FB_DirectoryCopy;
+	fdeltime:						LREAL;
+	ntemp:							INT;
+	sFile:							STRING(255);
+	bClearLined:					BOOL;
+
+	bInitialWrite:					BOOL:=TRUE;
+	bFirstLog:						BOOL:=TRUE;
+
+	bDiagDataLog_Release : 			BOOL;
+	stDiagDataLogTime:				TIMESTRUCT;
+
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[IF NOT bInUse THEN(*是否使能功能*)
+	StartUp:=TRUE;
+	RETURN;
+END_IF
+
+IF StartUp THEN
+	(* get cycle time of this task	*)
+	fbGetTaskIdx();
+	nTaskIdx:=MAX(MIN(fbGetTaskIdx.index,4),1);
+	fCycleTime:=UDINT_TO_LREAL(_TaskInfo[nTaskIdx].CycleTime)/10000000.0;
+	nState:=0;
+	IF fCycleTime<>0 THEN
+		StartUp:=FALSE;
+	END_IF
+END_IF
+
+
+act_CheckCom();		(*命令处理*)
+act_AutoWrite();	(*写*)
+act_AutoDelete();	(*删除旧文件*)
+act_Copy2USB();		(*复制到其它文件夹*)
+
+
+]]></ST>
+    </Implementation>
+    <Action Name="act_AutoDelete" Id="{7c895982-c0c2-49f8-8af4-a7681d05f5b4}">
+      <Implementation>
+        <ST><![CDATA[
+(*É¾³ý¾ÉÎÄ¼þ*)
+
+CASE delstep OF
+0:
+	fdeltime:=10.0;
+	IF b_DiagDataLog_AutoDelete AND (stDiagDataLogTime.wYear>0) AND (n_DiagDataLog_KeepForWeeks>0) THEN
+		ntemp:=1+7*MIN(MAX(n_DiagDataLog_KeepForWeeks,4),4000);
+		deldate:=stDiagDataLogTime;
+		WHILE (ntemp>0) DO
+			IF (deldate.wDay<2) THEN
+				deldate.wDay:=deldate.wDay+28;
+				deldate.wMonth:=deldate.wMonth-1;
+				IF (deldate.wMonth<1) THEN
+					deldate.wMonth:=12;
+					deldate.wYear:=deldate.wYear-1;
+				END_IF
+			END_IF
+			IF (deldate.wDay=ntemp) THEN
+				deldate.wDay:=1;
+				ntemp:=1;
+			ELSIF (deldate.wDay>ntemp) THEN
+				deldate.wDay:=deldate.wDay-ntemp;
+				ntemp:=0;
+			ELSE
+				ntemp:=ntemp-deldate.wDay;
+				deldate.wDay:=1;
+			END_IF
+		END_WHILE
+		deldatestart:=deldate;
+		delstep:=1;
+	END_IF
+
+1:	fdeltime:=fdeltime-fCycleTime;
+	IF NOT b_DiagDataLog_AutoDelete THEN
+		delstep:=0;
+	ELSIF (fdeltime<=0.0) THEN
+		delstep:=2;
+	END_IF
+
+2:
+	IF bDiagDataLogRunOn_WinCE THEN
+		sFile:=CONCAT(cnst_DiagDataLogFilePath_CE,cnst_SubDir_DiagDataLog);
+	ELSE
+		sFile:=CONCAT(cnst_DiagDataLogFilePath_XP,cnst_SubDir_DiagDataLog);
+	END_IF
+	sFile:=CONCAT(sFile,cnst_FileName);
+	stemp:=WORD_TO_STRING(deldate.wYear);
+	stemp:=CONCAT(stemp,'_');
+	IF (deldate.wMonth<10) THEN
+		stemp:=CONCAT(stemp,'0');
+	END_IF
+	stemp:=CONCAT(stemp,WORD_TO_STRING(deldate.wMonth));
+	stemp:=CONCAT(stemp,'_');
+	IF (deldate.wDay<10) THEN
+		stemp:=CONCAT(stemp,'0');
+	END_IF
+	stemp:=CONCAT(stemp,WORD_TO_STRING(deldate.wDay));
+	stemp:=CONCAT(stemp,'_');
+	IF(deldate.wHour<10)THEN
+		stemp:=CONCAT(stemp,'0');
+	END_IF
+	stemp:=CONCAT(stemp,WORD_TO_STRING(deldate.wHour));
+	stemp:=CONCAT(stemp,'.LOG');
+	fbdelete.sPathName:=CONCAT(sFile,stemp);
+	fbdelete.bExecute:=TRUE;
+	delstep:=3;
+
+3:
+	IF NOT fbdelete.bBusy THEN
+		fbdelete.bExecute:=FALSE;
+		IF (deldate.wHour=0) THEN
+			deldate.wHour:=23;
+			deldate.wDay:=deldate.wDay-1;
+		ELSE
+			deldate.wHour:=deldate.wHour-1;
+		END_IF
+		IF (deldate.wDay<1) THEN
+			deldate.wDay:=31;
+			deldate.wMonth:=deldate.wMonth-1;
+		END_IF
+		IF (deldate.wMonth<1) THEN
+			deldate.wMonth:=12;
+			deldate.wYear:=deldate.wYear-1;
+		END_IF
+		fdeltime:=1.5;
+		dtemp2:=12*WORD_TO_DINT(deldatestart.wYear-deldate.wYear)+WORD_TO_DINT(deldatestart.wMonth-deldate.wMonth);
+		IF (dtemp>24) THEN
+			delstep:=0;
+		ELSE
+			delstep:=1;
+		END_IF
+	END_IF
+
+ELSE
+	delstep:=0;
+
+END_CASE
+
+fbdelete();]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="act_AutoWrite" Id="{566cbe98-213a-4991-a3af-6b9255da4323}">
+      <Implementation>
+        <ST><![CDATA[
+(*Ð´*)
+
+CASE nState OF
+
+0:	(*
+		wait for clearance
+	*)
+	nEntries:=0;
+	bInputDoWrite:=bDiagDataLog_Release:=FALSE;
+	nWrState:=0;
+	IF NOT StartUp THEN
+		nState:=1;
+	END_IF
+
+1:	(*
+		try to create the directory
+	*)
+	fbMakeDir.bExecute:=FALSE;
+	fbGetTime.START:=FALSE;
+	fbMakeDir.sNetId:='';
+	IF bDiagDataLogRunOn_WinCE THEN
+		fbMakeDir.sPathName:=CONCAT(cnst_DiagDataLogFilePath_CE,cnst_SubDir_DiagDataLog);
+	ELSE
+		fbMakeDir.sPathName:=CONCAT(cnst_DiagDataLogFilePath_XP,cnst_SubDir_DiagDataLog);
+	END_IF
+	fbMakeDir.ePath:=PATH_GENERIC;
+	fbMakeDir.tTimeout:=T#5s;
+	nState:=2;
+
+2:	fbMakeDir();
+	fbGetTime();
+	IF NOT fbMakeDir.bExecute THEN
+		fbMakeDir.bExecute:=TRUE;
+	ELSIF NOT fbMakeDir.bBusy THEN
+		IF NOT fbGetTime.START THEN
+			fbGetTime.START:=TRUE;
+		ELSIF NOT fbGetTime.BUSY THEN
+			IF fbGetTime.ERR THEN
+				stDiagDataLogTime.wYear:=stDiagDataLogTime.wMonth:=stDiagDataLogTime.wDay:=0;
+				stDiagDataLogTime.wHour:=stDiagDataLogTime.wMinute:=stDiagDataLogTime.wSecond:=0;
+				stDiagDataLogTime.wMilliseconds:=0;
+				msecond:=0;
+			ELSE
+				stDiagDataLogTime:=fbGetTime.TIMESTR;
+				msecond:=fbGetTime.TIMESTR.wMilliseconds;
+			END_IF
+			fbGetTime(START:=FALSE);
+			fbMakeDir(bExecute:=FALSE);
+			nState:=11;
+		END_IF
+	END_IF
+
+
+11:
+	IF(nState>=10)THEN
+		(*
+			update and/or synchronize the clock
+		*)
+		stDiagDataLogTime.wMilliseconds:=stDiagDataLogTime.wMilliseconds+LREAL_TO_WORD(MIN(MAX(1000.0*fCycleTime,1.0),30000.0));
+	
+		IF(stDiagDataLogTime.wMilliseconds>=1000)THEN
+			stDiagDataLogTime.wMilliseconds:=stDiagDataLogTime.wMilliseconds-1000;
+			stDiagDataLogTime.wSecond:=stDiagDataLogTime.wSecond+1;
+			IF(stDiagDataLogTime.wSecond>=60)THEN
+				stDiagDataLogTime.wSecond:=stDiagDataLogTime.wSecond-60;
+				stDiagDataLogTime.wMinute:=stDiagDataLogTime.wMinute+1;
+				IF(stDiagDataLogTime.wMinute>=60)THEN
+					stDiagDataLogTime.wMinute:=stDiagDataLogTime.wMinute-60;
+					stDiagDataLogTime.wHour:=stDiagDataLogTime.wHour+1;
+				END_IF
+			END_IF
+		END_IF
+		msecond:=msecond+LREAL_TO_WORD(MIN(MAX(1000.0*fCycleTime,1.0),30000.0));
+		fbGetTime(START:=(msecond>1100));
+		IF fbGetTime.START THEN
+			IF(NOT fbGetTime.BUSY)THEN
+				IF(fbGetTime.ERR)THEN
+					msecond:=0;
+				ELSE
+					stDiagDataLogTime:=fbGetTime.TIMESTR;
+					msecond:=fbGetTime.TIMESTR.wMilliseconds;
+				END_IF
+			END_IF
+		END_IF
+
+		CASE nWrState OF
+
+			0:	IF bInputDoWrite THEN
+					bBusyWriting:= TRUE;
+					IF bDiagDataLogRunOn_WinCE THEN
+						sWrite:=CONCAT(cnst_DiagDataLogFilePath_CE,cnst_SubDir_DiagDataLog);
+					ELSE
+						sWrite:=CONCAT(cnst_DiagDataLogFilePath_XP,cnst_SubDir_DiagDataLog);
+					END_IF
+					sWrite:=CONCAT(sWrite,cnst_FileName);
+					stWrTime:=stDiagDataLogTime;
+					stemp:=WORD_TO_STRING(stWrTime.wYear);
+					stemp:=CONCAT(stemp,'_');
+					IF(stWrTime.wMonth<10)THEN
+						stemp:=CONCAT(stemp,'0');
+					END_IF
+					stemp:=CONCAT(stemp,WORD_TO_STRING(stWrTime.wMonth));
+					stemp:=CONCAT(stemp,'_');
+					IF(stWrTime.wDay<10)THEN
+						stemp:=CONCAT(stemp,'0');
+					END_IF
+					stemp:=CONCAT(stemp,WORD_TO_STRING(stWrTime.wDay));
+					stemp:=CONCAT(stemp,'_');
+					IF(stWrTime.wHour<10)THEN
+						stemp:=CONCAT(stemp,'0');
+					END_IF
+					stemp:=CONCAT(stemp,WORD_TO_STRING(stWrTime.wHour));
+					stemp:=CONCAT(stemp,'.LOG');
+					fbOpen.sPathName:=CONCAT(sWrite,stemp);
+					fbOpen.bExecute:=FALSE;
+					nWrState:=1;
+				END_IF
+	
+			1:	fbOpen(sNetId:='', nMode:=FOPEN_MODEAPPEND OR FOPEN_MODETEXT, ePath:=PATH_GENERIC, tTimeout:=T#5S);
+				IF NOT fbOpen.bExecute THEN
+					fbOpen.bExecute:=TRUE;
+				ELSIF NOT fbOpen.bBusy THEN
+					IF fbOpen.bError THEN
+						bInputDoWrite:=FALSE;
+						nWrState:=0;
+					ELSE
+						fbWrite(sNetId:='', hFile:=fbOpen.hFile, pWriteBuff:=0, cbWriteLen:=0, bExecute:=FALSE, tTimeout:=T#5s);
+						fbClose(sNetId:='', hFile:=fbOpen.hFile, bExecute:=FALSE, tTimeout:=T#5s);
+						nWrState:=2;
+					END_IF
+					fbOpen(bExecute:=FALSE);
+				END_IF
+
+			2:	(**)
+					stemp:=WORD_TO_STRING(stWrTime.wYear);
+					stemp:=CONCAT(stemp,'.');
+					IF(stWrTime.wMonth<10)THEN
+						stemp:=CONCAT(stemp,'0');
+					END_IF
+					stemp:=CONCAT(stemp,WORD_TO_STRING(stWrTime.wMonth));
+					stemp:=CONCAT(stemp,'.');
+					IF(stWrTime.wDay<10)THEN
+						stemp:=CONCAT(stemp,'0');
+					END_IF
+					stemp:=CONCAT(stemp,WORD_TO_STRING(stWrTime.wDay));
+					stemp:=CONCAT(stemp,'|');
+					IF(stWrTime.wHour<10)THEN
+						stemp:=CONCAT(stemp,'0');
+					END_IF
+					stemp:=CONCAT(stemp,WORD_TO_STRING(stWrTime.wHour));
+					stemp:=CONCAT(stemp,':');
+					IF(stWrTime.wMinute<10)THEN
+						stemp:=CONCAT(stemp,'0');
+					END_IF
+					stemp:=CONCAT(stemp,WORD_TO_STRING(stWrTime.wMinute));
+					stemp:=CONCAT(stemp,':');
+					IF(stWrTime.wSecond<10)THEN
+						stemp:=CONCAT(stemp,'0');
+					END_IF
+					stemp:=CONCAT(stemp,WORD_TO_STRING(stWrTime.wSecond));
+					stemp:=CONCAT(stemp,':');
+					IF(stWrTime.wMilliseconds<10)THEN
+						stemp:=CONCAT(stemp,'00');
+					END_IF
+					IF(stWrTime.wMilliseconds<100)
+					AND stWrTime.wMilliseconds>=10 THEN
+						stemp:=CONCAT(stemp,'0');
+					END_IF
+					stemp:=CONCAT(stemp,WORD_TO_STRING(stWrTime.wMilliseconds));
+					stemp:=CONCAT(stemp,'|');
+
+				sWriteData:=sWrite:=CONCAT(stemp , sActUseingString);
+				sWrite:=CONCAT(sWrite,'$n');
+				fbWrite(pWriteBuff:=ADR(sWrite), cbWriteLen:=LEN(sWrite), bExecute:=TRUE);
+				nWrState:=3;
+
+			3:	fbWrite(pWriteBuff:=ADR(sWrite), cbWriteLen:=LEN(sWrite), bExecute:=TRUE);
+				IF NOT fbWrite.bBusy THEN
+					IF fbWrite.bError THEN
+						nWrState:=-4;
+					ELSE
+						nWrState:=10;
+					END_IF
+					fbWrite(bExecute:=FALSE);
+				END_IF
+
+			-4,
+			10:fbClose(bExecute:=TRUE);
+				IF NOT fbClose.bBusy THEN
+					IF fbClose.bError THEN
+						bBusyWriting:=FALSE;
+						bInputDoWrite:=FALSE;
+						nWrState:=0;
+					ELSE
+						bBusyWriting:=FALSE;
+						bInputDoWrite:=FALSE;
+						nWrState:=0;
+					END_IF
+					fbClose(bExecute:=FALSE);
+				END_IF
+		END_CASE
+	END_IF
+
+
+
+END_CASE]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="act_CheckCom" Id="{dfc86cbe-b553-4e36-91e5-953ce51589eb}">
+      <Implementation>
+        <ST><![CDATA[
+
+	IF sInputString<>''(*ÓÐÐÂµÄ¼ÇÂ¼ÐèÒªÐ´*)
+	AND nState=11 THEN
+		FOR i:=1 TO 10 DO
+			IF aStringBuffer[i]='' THEN
+				aStringBuffer[i]:=sInputString;(*·Åµ½»º´æ*)
+				EXIT;
+			END_IF
+		END_FOR
+		sInputString:='';
+	END_IF
+
+	IF aStringBuffer[1]<>''(*»º´æÓÐÐèÒªÐ´µÄ¼ÇÂ¼*)
+	AND NOT bInputDoWrite THEN
+		sActUseingString:=aStringBuffer[1];
+		FOR i:=1 TO 9 DO
+			aStringBuffer[i]:= aStringBuffer[i+1];
+		END_FOR
+		aStringBuffer[10]:='';
+		bInputDoWrite:=TRUE;
+	END_IF
+
+]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="act_Copy2USB" Id="{1e9025b7-d8fb-4db6-b1b1-a7c1366be8bb}">
+      <Implementation>
+        <ST><![CDATA[
+(*¸´ÖÆµ½ÆäËüÎÄ¼þ¼Ð*)
+CASE CopyStep OF
+	0:
+		IF bCopyToUSB THEN
+			CopyStep:=100;
+		END_IF
+
+	100:
+		IF bDiagDataLogRunOn_WinCE THEN
+			fbDirectoryCopy.srcPathName:=cnst_DiagDataLogFilePath_CE;
+			fbDirectoryCopy.destPathName:=cnst_USB_FilePath_CE;
+		ELSE
+			fbDirectoryCopy.srcPathName:=cnst_DiagDataLogFilePath_XP;
+			fbDirectoryCopy.destPathName:=cnst_USB_FilePath_XP;
+		END_IF
+		fbDirectoryCopy.DirectoryName:= LEFT(cnst_SubDir_DiagDataLog,LEN(cnst_SubDir_DiagDataLog)-1);
+		fbDirectoryCopy.FileType:= 		'log';
+		CopyStep:=200;
+
+	200:
+		fbDirectoryCopy(bExecute:=TRUE);
+		IF fbDirectoryCopy.bBusy THEN
+			CopyStep:=300;
+		END_IF
+
+	300:
+		fbDirectoryCopy();
+		IF NOT fbDirectoryCopy.bBusy THEN
+			fbDirectoryCopy(bExecute:=FALSE);
+			CopyStep:=400;
+		END_IF
+
+	400:
+		IF NOT bCopyToUSB THEN
+			CopyStep:=0;
+		END_IF
+
+END_CASE]]></ST>
+      </Implementation>
+    </Action>
+    <LineIds Name="FB_DiagDataLogging">
+      <LineId Id="79" Count="8" />
+      <LineId Id="181" Count="0" />
+      <LineId Id="89" Count="13" />
+    </LineIds>
+    <LineIds Name="FB_DiagDataLogging.act_AutoDelete">
+      <LineId Id="0" Count="99" />
+    </LineIds>
+    <LineIds Name="FB_DiagDataLogging.act_AutoWrite">
+      <LineId Id="0" Count="206" />
+    </LineIds>
+    <LineIds Name="FB_DiagDataLogging.act_CheckCom">
+      <LineId Id="0" Count="23" />
+    </LineIds>
+    <LineIds Name="FB_DiagDataLogging.act_Copy2USB">
+      <LineId Id="0" Count="38" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

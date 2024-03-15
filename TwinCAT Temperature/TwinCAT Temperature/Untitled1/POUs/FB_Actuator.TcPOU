@@ -1,0 +1,265 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <POU Name="FB_Actuator" Id="{2afdd19d-9e87-40b3-9204-709a6edc0f1c}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION_BLOCK FB_Actuator(*执行器*)
+VAR_INPUT
+	benable:					BOOL;(*使能信号*)
+	inWork:					BOOL;(*在工作位的信号输入*)
+	inBasic:					BOOL;(*在基本位的信号输入*)
+	FilterInWork:				TIME;(*在工作位滤波时间*)
+	FilterInBasic:				TIME;(*在基本位滤波时间*)
+	rqWork:					    BOOL;(*到工作位指令*)
+	rqBasic:					BOOL;(*到基本位指令*)
+	EnableManuWorkBt:		BOOL:=TRUE;(*使能到工作位按钮*)
+	EnableManuBasicBt:		BOOL:=TRUE;(*使能到基本位按钮*)
+	TimeOutWork:			REAL:=5;(*到工作位超时报警时间*)(*单位s*)
+	TimeOutBasic:			REAL:=5;(*到基本位超时报警时间*)(*单位s*)
+	bUseTimeLimit:			BOOL:=FALSE;(*利用时间做限位到位开关，不使用实际的反馈点*)
+	bLockByItself:				BOOL;(*是否自锁*)
+	bForceEnableManualBt:		BOOL;(*强制使用手动按钮功能,不需要转换到手动模式*)
+	breset:BOOL;(*复位按钮*)
+	sName:					WSTRING:="执行器";
+END_VAR
+VAR_OUTPUT
+	isWork:					BOOL;(*已经到了工作位*)
+	isBasic:				BOOL:=TRUE;(*已经到了基本位*)
+	doWork:					BOOL;(*开始到工作位输出信号*)
+	doBasic:				BOOL;(*开始到基本位输出信号*)
+	bError:					BOOL;(*错误*)
+	ierrorID:					INT;(*错误代码，参考action errorID*)
+	MoveWorkTime:			REAL;(*到工作位时间计时*)(*单位s*)
+	MoveBasicTime:			REAL;(*到基本位时间计时*)(*单位s*)
+END_VAR
+VAR
+	btManuWork:				BOOL;(*手动按钮*)(*工作位*)
+	btManuBasic:				BOOL;(*手动按钮*)(*基本位*)
+	timecountwork:BOOL;(*工作位计时信号*)
+	timecountbasic:BOOL;(*基本位计时信号*)
+	R_TRIG_TIMECOUNT:		ARRAY[1..4] OF R_TRIG;
+	timeCount:				ARRAY[1..2] OF TON;
+	Filter:					ARRAY[1..2] OF TON;
+	R_TRIG_TimeOut: 		ARRAY[1..2] OF R_TRIG;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[//错误ID报警信息
+(*
+0：没有错误；
+1：自动模式同时触发rqwork和rqbasic；
+2：手动模式同时触发btmanuwork和btmanubasic；
+3：未给manuworkbt按钮使能；
+4：未给manubasicbt按钮使能；
+5：工作位运行超时；
+6：基本位运行超时；
+*)
+IF benable AND NOT berror THEN
+(*==============安全，防止请求工作位和请求基本位逻辑同时触发造成事故=============================*)
+IF rqWork
+AND rqBasic THEN 
+	rqWork:=rqBasic:=FALSE; 
+	bError:=TRUE;
+	ierrorID:=1;
+END_IF
+IF btManuWork 
+AND btManuBasic THEN
+	btManuWork:=btManuBasic:=FALSE; 
+	bError:=TRUE;
+	ierrorID:=2;
+END_IF
+
+(*==============自动模式的输出=============================*)
+IF NOT bForceEnableManualBt //未触发强制使用手动
+(*AND (RqSysAutoModeIsActive//系统请求自动模式
+	OR DATA.GoHome) *)THEN
+	IF bLockByItself THEN	(*触发了自锁模式，持续输出工作位/基本位信号*)
+		IF rqWork THEN //请求到工作位
+			doWork:=TRUE;//锁定工作位
+			doBasic:=FALSE;
+		ELSIF rqBasic THEN//请求到基本位
+			doWork:=FALSE;
+			doBasic:=TRUE;//锁定基本位
+		END_IF
+	ELSE					(*未触发自锁，进入普通模式，输出信号自动复位*)
+		doWork:=rqWork
+				(*OR (btManuWork
+				AND DATA.ManualModeIsActive
+				AND EnableManuWorkBt)*);
+		doBasic:=rqBasic
+				(*OR (btManuBasic
+				AND DATA.ManualModeIsActive
+				AND EnableManuBasicBt)*);
+	END_IF
+
+(*==============手动模式的输出=============================*)
+ELSIF (*RqSysManualModeIsActive//系统请求使用手动模式
+OR*) bForceEnableManualBt THEN//强制使用手动模式
+
+	IF bLockByItself THEN	(*自锁模式*)
+		IF btManuWork//使能并触发手动按钮请求工作位
+		AND EnableManuWorkBt THEN
+			doWork:=TRUE;//锁定工作位
+			doBasic:=FALSE;
+		ELSIF btManuBasic//使能并触发手动按钮请求基本位
+		AND EnableManuBasicBt THEN
+			doWork:=FALSE;
+			doBasic:=TRUE;//锁定基本位
+		END_IF
+	ELSE					(*普通模式，信号自复位*)
+		doWork:=btManuWork
+				AND EnableManuWorkBt;//到工作位=手动按钮工作位 且 使能该按钮
+		doBasic:=btManuBasic
+				AND EnableManuBasicBt;//到基本位=手动按钮基本位 且 使能该按钮
+	END_IF
+
+ELSIF NOT bLockByItself THEN
+	doWork:=FALSE;
+	doBasic:=FALSE;
+END_IF
+
+(*=========================状态输出=============================*)
+IF (*Set.gcSimulationMode(*程序模拟运行*)
+OR *)bUseTimeLimit THEN(*利用时间做限位到位开关，不使用实际的反馈点*)
+	IF doWork THEN
+		Filter[1](IN:=doWork , PT:=T#1S , Q=>isWork);
+		isBasic:=FALSE;
+	ELSE
+		Filter[1](IN:=FALSE);
+	END_IF
+	IF doBasic THEN
+		Filter[2](IN:=doBasic , PT:=T#1S , Q=>isBasic);
+		isWork:=FALSE;
+	ELSE
+		Filter[2](IN:=FALSE);
+	END_IF
+
+ELSE(*实际输入输出*)
+	IF FilterInWork>T#0ms THEN
+		Filter[1](IN:=inWork , PT:=FilterInWork , Q=>isWork);
+	ELSE
+		isWork:=inWork;
+	END_IF
+	IF FilterInWork>T#0ms THEN
+		Filter[2](IN:=inBasic , PT:=FilterInBasic , Q=>isBasic);
+	ELSE
+		isBasic:=inBasic;
+	END_IF
+END_IF
+
+
+(*==============手动时，条件不满足报警输出============================*)
+IF (*DATA.ManualModeIsActive OR*) bForceEnableManualBt THEN
+	IF btManuWork
+	AND NOT EnableManuWorkBt THEN
+		bError :=TRUE;
+		ierrorID :=3;
+	END_IF
+	IF btManuBasic
+	AND NOT EnableManuBasicBt THEN
+		berror:=TRUE;
+		ierrorID:=4;
+	END_IF
+END_IF
+
+
+(*==============运动计时====================================================*)
+
+R_TRIG_TIMECOUNT[1](CLK:= dowork, Q=> );
+R_TRIG_TIMECOUNT[2](CLK:= iswork, Q=> );
+R_TRIG_TIMECOUNT[3](CLK:= dobasic, Q=> );
+R_TRIG_TIMECOUNT[4](CLK:= isbasic, Q=> );
+
+IF r_trig_timecount[1].Q THEN
+	timecountwork:=TRUE;
+ELSIF r_trig_timecount[2].Q THEN
+	MoveWorkTime:=0.002+TIME_TO_REAL(timeCount[1].ET)/1000;
+ELSIF iswork THEN
+	timecountwork:=FALSE;
+END_IF
+
+IF r_trig_timecount[3].Q THEN
+	timecountbasic:=TRUE;
+ELSIF r_trig_timecount[4].Q THEN
+	MoveBasicTime:=0.002+TIME_TO_REAL(timeCount[2].ET)/1000;
+elsif isbasic then
+	timecountbasic:=FALSE;
+END_IF
+
+timeCount[1](IN:=timecountwork , PT:=T#1H );
+timeCount[2](IN:=timecountbasic, PT:=T#1H );
+
+
+(*==============报警====================================================*)
+Act_Alarm();
+END_IF
+
+IF (*DATA.ResetAlarm OR*) breset THEN
+	bError:=FALSE;
+	ierrorID:=0;
+	inWork:=FALSE;
+	inBasic:=FALSE;
+	rqWork:=FALSE;
+	rqBasic:=FALSE;
+END_IF]]></ST>
+    </Implementation>
+    <Action Name="ACT_Alarm" Id="{771b2373-3116-472e-97fa-ba31ecfff8bf}">
+      <Implementation>
+        <ST><![CDATA[(*==============³¬Ê±±¨¾¯================================================================*)
+R_TRIG_TimeOut[1](CLK:=TIME_TO_REAL(timeCount[1].ET)/1000 > TimeOutWork );
+R_TRIG_TimeOut[2](CLK:=TIME_TO_REAL(timeCount[2].ET)/1000 > TimeOutBasic );
+
+IF R_TRIG_TimeOut[1].Q THEN
+	bError :=TRUE;
+	ierrorID :=5;
+END_IF
+
+IF R_TRIG_TimeOut[1].Q THEN
+	bError :=TRUE;
+	ierrorID :=6;
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <LineIds Name="FB_Actuator">
+      <LineId Id="224" Count="8" />
+      <LineId Id="223" Count="0" />
+      <LineId Id="207" Count="0" />
+      <LineId Id="47" Count="3" />
+      <LineId Id="211" Count="1" />
+      <LineId Id="51" Count="3" />
+      <LineId Id="213" Count="1" />
+      <LineId Id="55" Count="85" />
+      <LineId Id="215" Count="0" />
+      <LineId Id="141" Count="3" />
+      <LineId Id="216" Count="0" />
+      <LineId Id="145" Count="1" />
+      <LineId Id="150" Count="2" />
+      <LineId Id="288" Count="0" />
+      <LineId Id="279" Count="0" />
+      <LineId Id="285" Count="2" />
+      <LineId Id="291" Count="0" />
+      <LineId Id="153" Count="0" />
+      <LineId Id="280" Count="0" />
+      <LineId Id="289" Count="0" />
+      <LineId Id="299" Count="1" />
+      <LineId Id="290" Count="0" />
+      <LineId Id="281" Count="0" />
+      <LineId Id="293" Count="0" />
+      <LineId Id="295" Count="2" />
+      <LineId Id="301" Count="1" />
+      <LineId Id="298" Count="0" />
+      <LineId Id="294" Count="0" />
+      <LineId Id="160" Count="6" />
+      <LineId Id="9" Count="0" />
+      <LineId Id="234" Count="7" />
+      <LineId Id="233" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_Actuator.ACT_Alarm">
+      <LineId Id="2" Count="4" />
+      <LineId Id="10" Count="0" />
+      <LineId Id="19" Count="0" />
+      <LineId Id="8" Count="0" />
+      <LineId Id="14" Count="1" />
+      <LineId Id="18" Count="0" />
+      <LineId Id="20" Count="0" />
+      <LineId Id="17" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

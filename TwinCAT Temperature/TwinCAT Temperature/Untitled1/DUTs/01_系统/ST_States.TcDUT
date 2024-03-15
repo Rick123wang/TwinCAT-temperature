@@ -1,0 +1,39 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <DUT Name="ST_States" Id="{378c6911-11a5-4b33-9d1a-774880b3b5b9}">
+    <Declaration><![CDATA[TYPE ST_States :
+STRUCT
+	ManualModeIsActive:				BOOL;(*手动模式*)
+	AutoModeIsActive:				BOOL;(*自动模式*)
+	MachineRunInCycle:				BOOL;(*自动运行中*)
+	GoPauseState:					BOOL;(*请求暂停记忆*)
+	AutoStoping:						BOOL;(*自动停机中*)
+	ResetAlarm:						BOOL;(*报警复位*)
+	GoHome:							BOOL;(*请求找原点*)
+
+
+	(*电机*)
+	HomeDone:						BOOL;(*原点完成*)
+	Motor_PowerOn:				BOOL;(*上电完成*)
+	Motor_HomeDone:				BOOL;(*原点完成*)
+	Motor_SwError:				BOOL;(*电机NC软件出错*)
+	Motor_SwErrId:				UDINT;
+	Motor_Limit:				BOOL;(*电机限位*)
+	Motor_HwError:				BOOL;(*电机硬件出错*)
+
+	Hmi_btHome:						BOOL;(*画面按钮*)(*回原点*)
+	Hmi_btAutoRun:					BOOL;(*画面按钮*)(*开始*)
+	Hmi_btAutoStop:					BOOL;(*画面按钮*)(*停止*)
+	Hmi_btPause:					BOOL;(*画面按钮*)(*暂停*)
+
+
+	(*状态*)
+	ConvCanRun:						BOOL:=TRUE;(*传送带启动允许*)
+
+	ActBoxId:						INT;(*当前进箱子的ID号*)
+
+
+END_STRUCT
+END_TYPE]]></Declaration>
+  </DUT>
+</TcPlcObject>

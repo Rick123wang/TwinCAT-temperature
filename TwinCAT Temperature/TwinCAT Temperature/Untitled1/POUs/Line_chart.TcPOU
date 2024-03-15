@@ -1,0 +1,90 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <POU Name="Line_chart" Id="{200ab6ee-d6dc-4eee-9a8c-8e79cd36edb0}" SpecialFunc="None">
+    <Declaration><![CDATA[PROGRAM Line_chart
+VAR
+	aPoints : ARRAY [1..2,1..10000] OF ST_Point;
+	bInit : BOOL := TRUE;
+	nCounter: INT:=10000;
+	nValue1 : INT := 1;
+	nValue2 : INT := -1;
+	btag1: BOOL;
+	i: INT;
+	nposrang: INT:=10000;
+	tTimer: ToN;
+	nsamptime	:TIME:=T#50MS;
+	bstart: BOOL;
+	tTimer1: TON;
+	Et1: TIME;
+	Tnow_time: REAL;
+	sin_n_int: LREAL;
+	sin_n:LREAL;
+	bclear: BOOL;
+	AMP:INT:=10;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[IF bInit THEN
+	FOR nCounter := 1 TO 10000 DO
+		aPoints[1, nCounter].x := nCounter;// nCounter
+		//aPoints[2, nCounter].x := nCounter;
+		aPoints[2, nCounter].y := 1000;
+	END_FOR
+	
+		bInit := FALSE;
+END_IF
+IF NOT btag1 THEN
+	
+	FOR i:=nposrang TO 1 BY -1 DO
+	aPoints[1, nposrang].y :=0;
+	aPoints[1, nposrang].x :=0;
+	END_FOR
+	btag1:=TRUE;
+ELSE
+	tTimer(IN:=NOT tTimer.q , PT:=nsamptime , Q=> , ET=> );
+IF bstart THEN
+	tTimer1(IN:=NOT tTimer1.q , PT:=T#10D , Q=> , ET=>Et1 );
+	Tnow_time:=TIME_TO_REAL(Et1)/1000;
+END_IF
+bstart:=main.bStartTemControl;
+IF tTimer.Q AND bstart THEN
+	sin_n_int:=sin_n_int+0.005;
+	sin_n:=SIN(pi*sin_n_int)*AMP;
+	//目标数据采集
+FOR nCounter:=nposrang TO 2 BY -1 DO	
+	aPoints[1, nCounter].y := aPoints[1, nCounter - 1].y;
+	aPoints[1, nCounter].x := aPoints[1, nCounter - 1].x;
+END_FOR
+	aPoints[1, 1].y := Controller_v2.ftemp_convert;//Controller_v2.ftemp
+	aPoints[1, 1].x := Tnow_time;
+END_IF
+END_IF
+IF bclear THEN 						//清空数据
+	FOR nCounter := 1 TO 1000  DO
+	aPoints[1, nCounter].x :=0;
+	aPoints[1, nCounter].y :=0;
+	//sin_n_int:=0;
+	END_FOR
+END_IF]]></ST>
+    </Implementation>
+    <LineIds Name="Line_chart">
+      <LineId Id="14" Count="6" />
+      <LineId Id="5" Count="0" />
+      <LineId Id="21" Count="0" />
+      <LineId Id="23" Count="7" />
+      <LineId Id="22" Count="0" />
+      <LineId Id="37" Count="2" />
+      <LineId Id="36" Count="0" />
+      <LineId Id="86" Count="0" />
+      <LineId Id="44" Count="0" />
+      <LineId Id="47" Count="1" />
+      <LineId Id="45" Count="0" />
+      <LineId Id="52" Count="4" />
+      <LineId Id="51" Count="0" />
+      <LineId Id="46" Count="0" />
+      <LineId Id="57" Count="0" />
+      <LineId Id="59" Count="5" />
+      <LineId Id="58" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

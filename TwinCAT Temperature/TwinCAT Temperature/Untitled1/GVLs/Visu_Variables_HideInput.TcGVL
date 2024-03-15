@@ -1,0 +1,81 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <GVL Name="Visu_Variables_HideInput" Id="{924e82e3-71c0-4af3-afc7-de4cd6dafbee}">
+    <Declaration><![CDATA[{attribute 'Tc2GvlVarNames'}
+VAR_GLOBAL
+
+	(*
+		User Level Control
+	*)
+	sUserLevel:					STRING[20];
+	nVisuUserLevel:				INT;
+	bUseLogOutDelay:			BOOL;
+	fUserLogOutDelay:			LREAL;
+	sUserPassword:				STRING[20];
+	bUserLevel0:				BOOL;
+	bUserLevel1:				BOOL;
+	bUserLevel2:				BOOL;
+	bUserLevel3:				BOOL;
+	bNewPassword:				BOOL;
+	sNewUserPass1:			STRING[20];
+	sNewUserPass2:			STRING[20];
+	oldPasswords:				ARRAY [0..7] OF STRING[20];
+	oldLanguage:				STRING[40];
+	bVisuExUserLevel:			BOOL;
+	bVisuInUserLevel:			BOOL;
+
+(* ######################### Pswd Input Varaibles ########################## *)
+
+	sPassInput : STRING := '';
+	sPassV : STRING;
+
+	i: DINT;
+	iLen: DINT;
+	bReset: BOOL;
+
+	b_a_s : BOOL;
+	b_b_s : BOOL;
+	b_c_s : BOOL;
+	b_d_s : BOOL;
+	b_e_s : BOOL;
+	b_f_s : BOOL;
+
+
+
+
+	b_1_s : BOOL;
+	b_2_s : BOOL;
+	b_3_s : BOOL;
+	b_4_s : BOOL;
+	b_5_s : BOOL;
+	b_6_s : BOOL;
+	b_7_s : BOOL;
+	b_8_s : BOOL;
+	b_9_s : BOOL;
+	b_0_s : BOOL;
+
+
+
+	bBack: BOOL;
+	iBackLen: INT;
+	bShowNumPad:	BOOL;
+	bHideNumPad:	BOOL;
+	bCmdShowNumPad: BOOL;
+	bCmdEnterValue:	BOOL;
+	bCmdEscNumPad:	BOOL;
+	sChangedPswd: STRING;
+
+	bCmdShowNumPadUserPswd:	BOOL;
+	bCmdShowNumPadNewPswd1:	BOOL;
+	bCmdShowNumPadNewPswd2:	BOOL;
+
+	sUserPasswordHide	:	STRING[20];
+	sNewUserPass1Hide:	STRING[20];
+	sNewUserPass2Hide:	STRING[20];
+
+	bHidePswdFlush:	BOOL;
+
+END_VAR
+]]></Declaration>
+  </GVL>
+</TcPlcObject>

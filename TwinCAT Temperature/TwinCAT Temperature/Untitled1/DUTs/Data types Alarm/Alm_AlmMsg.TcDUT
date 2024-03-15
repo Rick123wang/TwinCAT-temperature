@@ -1,0 +1,12 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <DUT Name="Alm_AlmMsg" Id="{8a169aab-ad27-47fe-9f02-e44a293aeaa6}">
+    <Declaration><![CDATA[TYPE Alm_AlmMsg :
+STRUCT
+	CN:		WSTRING:="中文";
+	EN:		STRING:='En';	
+END_STRUCT
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

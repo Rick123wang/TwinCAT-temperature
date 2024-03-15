@@ -1,0 +1,30 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <DUT Name="ST_Input" Id="{0758fd40-83dc-414b-817e-bff263206ac4}">
+    <Declaration><![CDATA[TYPE ST_Input :
+STRUCT
+	biSnAirPressOk:				BOOL;(*压缩气源正常*)
+	biSnBackDoorIsClose:				BOOL;(*后门关*)
+
+	biSwEmgStop:				BOOL;(*急停按钮*)
+	biBtStart:				BOOL;(*开始按钮*)
+	biBtStop:				BOOL;(*停止按钮*)
+	biBtHold:				BOOL;(*暂停按钮*)
+
+   	biSnVacuuSor:				BOOL;(*取料真空检测*)
+
+	biSnConvBoxIn:				BOOL;(*检测到进料口有箱子进来了*)
+	biSnConvBoxOut:				BOOL;(*检测到出料口有箱子需要出来*)
+	biSnBoxCapper:				BOOL;(*封箱机检测到有箱子进来*)
+
+
+	noUse:				BOOL;
+
+
+
+
+
+END_STRUCT
+END_TYPE]]></Declaration>
+  </DUT>
+</TcPlcObject>

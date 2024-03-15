@@ -1,0 +1,374 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <POU Name="MAIN_Alarm" Id="{cbf8e7c2-9ca2-4cbe-9e4b-1c9d7593b7be}" SpecialFunc="None">
+    <Declaration><![CDATA[PROGRAM MAIN_ALarm
+VAR
+	fbAlarmMAIN:				FB_AlarmMAIN;
+	fbDiagDataLogging_S:		FB_DiagDataLogging;
+	bInidDone: 					BOOL;
+	D1:							DINT:=1;
+	D2:							DINT:=1;
+	ModleName:					STRING:='EL1008';
+	TON_Delay:					TON;
+	TON_TimeOutCount: 			TON;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[
+
+IF NOT bInidDone THEN
+	aInit();
+ELSE
+	TON_Delay(IN:=TRUE , PT:=T#2S );
+	IF TON_Delay.Q THEN
+		aOtherAlarm();
+		fbAlarmMAIN();
+		gbAlarm_StopAlarm := fbAlarmMAIN.AlarmAction1;
+		gbAlarm_NeedPause := fbAlarmMAIN.AlarmAction2;
+		fbDiagDataLogging_s(sInputString:=gsWriteToLog);
+	END_IF		
+END_IF
+
+
+
+
+]]></ST>
+    </Implementation>
+    <Action Name="aInit" Id="{5108836c-b4b6-475b-8faa-a8058db4ff00}">
+      <Implementation>
+        <ST><![CDATA[
+	
+	AlarmActionArray[1].AlarmMsg.CN	:=	"EtherCAT总线错误,模块名:%S";
+	AlarmActionArray[2].AlarmMsg.CN	:=	"系统初始化中......";
+	AlarmActionArray[3].AlarmMsg.CN	:=	"急停按钮!";
+	AlarmActionArray[4].AlarmMsg.CN	:=	"配方参数改变，请注意保存配方!";
+	AlarmActionArray[5].AlarmMsg.CN	:=	"配方系统运行中，请不要断开电源!";
+	AlarmActionArray[6].AlarmMsg.CN	:=	"气压低!";
+	AlarmActionArray[7].AlarmMsg.CN	:=	"暂停中!";
+	AlarmActionArray[8].AlarmMsg.CN	:=	"开机前请先回原点";
+	AlarmActionArray[9].AlarmMsg.CN	:=	"伺服正在找原点!";
+	AlarmActionArray[10].AlarmMsg.CN	:=	"自动停机中!";
+	AlarmActionArray[11].AlarmMsg.CN	:=	"立刻停机中!";
+	AlarmActionArray[12].AlarmMsg.CN	:=	"设备自动运行中";
+	AlarmActionArray[13].AlarmMsg.CN	:=	"视觉控制器通讯异常!";
+	AlarmActionArray[14].AlarmMsg.CN	:=	"伺服NC报警,报警号:%S";
+	AlarmActionArray[15].AlarmMsg.CN	:=	"伺服驱动器报错";
+	AlarmActionArray[16].AlarmMsg.CN	:=	"伺服驱动器限位";
+	AlarmActionArray[17].AlarmMsg.CN	:=	"系统时间超时!";
+	AlarmActionArray[18].AlarmMsg.CN	:=	"ModbusRTU步进电机通讯异常!";
+	AlarmActionArray[19].AlarmMsg.CN	:=	"机器人1信息提示!";
+	AlarmActionArray[20].AlarmMsg.CN	:=	"机器人2信息提示!";
+	AlarmActionArray[21].AlarmMsg.CN	:=	"步进驱动器报错!";
+	AlarmActionArray[22].AlarmMsg.CN	:=	"机器人序列号异常!";
+
+	
+	AlarmActionArray[1].AlarmMsg.EN	:=	'EtherCATBusErr,At %S';
+	AlarmActionArray[2].AlarmMsg.EN	:=	'SystemLoading';
+	AlarmActionArray[3].AlarmMsg.EN	:=	'EmergentStop';
+	AlarmActionArray[4].AlarmMsg.EN	:=	'ProductChangeNeedSave';
+	AlarmActionArray[5].AlarmMsg.EN	:=	'ProductLoadingNoPowerOff';
+	AlarmActionArray[6].AlarmMsg.EN	:=	'AirPressLow';
+	AlarmActionArray[7].AlarmMsg.EN	:=	'Prushing';
+	AlarmActionArray[8].AlarmMsg.EN	:=	'NeedHoming';
+	AlarmActionArray[9].AlarmMsg.EN	:=	'IsHoming';
+	AlarmActionArray[10].AlarmMsg.EN	:=	'AutoStoping';
+	AlarmActionArray[11].AlarmMsg.EN	:=	'AutoStopImediery';
+	AlarmActionArray[12].AlarmMsg.EN	:=	'AutoRuning';
+	AlarmActionArray[13].AlarmMsg.EN	:=	'ComErrorVS';
+	AlarmActionArray[14].AlarmMsg.EN	:=	'ServoError,ErrorId: %S';
+	AlarmActionArray[15].AlarmMsg.EN	:=	'ServoHwError';
+	AlarmActionArray[16].AlarmMsg.EN	:=	'ServoLimit';
+	AlarmActionArray[17].AlarmMsg.EN	:=	'CycleTimeOut';
+	AlarmActionArray[18].AlarmMsg.EN	:=	'ModbusRtuError';
+	AlarmActionArray[19].AlarmMsg.EN	:=	'RobotError1';
+	AlarmActionArray[20].AlarmMsg.EN	:=	'RobotError2';
+	AlarmActionArray[21].AlarmMsg.EN	:=	'StepServoError';
+	AlarmActionArray[22].AlarmMsg.EN	:=	'RobotSN_Error';
+	
+	
+	FOR i:=cnAlarmFirst TO cnAlarmLast DO
+		fbSetAlarm[i].EventId :=DINT_TO_INT( i);
+	END_FOR	
+	bInidDone:=TRUE;
+	
+]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="aOtherAlarm" Id="{b9d122ed-e9cb-4874-8dbc-a8f0cc3bed8a}">
+      <Implementation>
+        <ST><![CDATA[
+		fbSetAlarm[AlarmID.AirPressLow]
+			(
+			InUse:=			TRUE ,
+			EventActive:=	NOT stInput.biSnAirPressOk ,
+			FilterInUse:= 	TRUE,
+			FilterTime:= 	T#20ms,
+			QuitRequired:=	TRUE,
+			QuitEvent:=		DATA.ResetAlarm ,
+			EventClass:=	7 ,
+			ToTheHistory:=	TRUE ,
+			ToTheLogFile:=	TRUE,
+			AlarmlampOn:=	TRUE ,
+			(*急停*)AlarmAction1:=TRUE ,
+			 );
+
+
+		fbSetAlarm[AlarmID.EmergentStop]
+			(
+			InUse:=			FALSE ,
+			EventActive:=	NOT stInput.biSwEmgStop ,
+			FilterInUse:= 	TRUE,
+			FilterTime:= 	T#20ms,
+			QuitRequired:=	TRUE,
+			QuitEvent:=		DATA.ResetAlarm ,
+			EventClass:=	7 ,
+			ToTheHistory:=	TRUE ,
+			ToTheLogFile:=	TRUE,
+			AlarmlampOn:=	TRUE ,
+			(*急停*)AlarmAction1:=TRUE ,
+			 );
+
+
+		(*TON_TimeOutCount
+			(
+			IN:= 	MODE=AutoRuning
+					AND ncAxis[1].Status.NotMoving
+					AND ncAxis[2].Status.NotMoving
+					AND ncAxis[3].Status.NotMoving
+					AND ncAxis[4].Status.NotMoving
+					AND ncAxis[5].Status.NotMoving
+					AND ncAxis[6].Status.NotMoving
+					AND ncAxis[7].Status.NotMoving
+					AND ncAxis[8].Status.NotMoving
+					AND ncAxis[9].Status.NotMoving
+					AND ncAxis[10].Status.NotMoving,
+
+			PT:=	T#5s
+			);*);
+		fbSetAlarm[AlarmID.CycleTimeOut]
+			(
+			InUse:=			FALSE,
+			EventActive:=	TON_TimeOutCount.Q ,
+			FilterInUse:= 	FALSE,
+			FilterTime:= 	T#20ms,
+			QuitRequired:=	TRUE,
+			QuitEvent:=		DATA.ResetAlarm ,
+			EventClass:=	7 ,
+			ToTheHistory:=	TRUE ,
+			ToTheLogFile:=	TRUE,
+			AlarmlampOn:=	TRUE ,
+			(*急停*)AlarmAction1:=TRUE ,
+			 );
+
+		fbSetAlarm[AlarmID.ServoError]
+			(
+			InUse:=			TRUE,
+			EventActive:=	DATA.Motor_SwError ,
+			FilterInUse:= 	FALSE,
+			FilterTime:= 	T#20ms,
+			QuitRequired:=	TRUE,
+			QuitEvent:=		DATA.ResetAlarm ,
+			EventClass:=	7 ,
+			ToTheHistory:=	TRUE ,
+			ToTheLogFile:=	TRUE,
+			AlarmlampOn:=	TRUE ,
+			(*急停*)AlarmAction1:=TRUE ,
+			S1:=			UDINT_TO_STRING(DATA.Motor_SwErrId),
+			 );
+		DATA.Motor_SwError:=FALSE;
+
+		fbSetAlarm[AlarmID.ServoHwError]
+			(
+			InUse:=			TRUE,
+			EventActive:=	DATA.Motor_HwError ,
+			FilterInUse:= 	FALSE,
+			FilterTime:= 	T#20ms,
+			QuitRequired:=	TRUE,
+			QuitEvent:=		DATA.ResetAlarm ,
+			EventClass:=	7 ,
+			ToTheHistory:=	TRUE ,
+			ToTheLogFile:=	TRUE,
+			AlarmlampOn:=	TRUE ,
+			(*急停*)AlarmAction1:=TRUE ,
+			 );
+		DATA.Motor_HwError:=FALSE;
+
+
+		fbSetAlarm[AlarmID.ServoLimit]
+			(
+			InUse:=			TRUE,
+			EventActive:=	DATA.Motor_Limit ,
+			FilterInUse:= 	FALSE,
+			FilterTime:= 	T#20ms,
+			QuitRequired:=	TRUE,
+			QuitEvent:=		DATA.ResetAlarm ,
+			EventClass:=	3 ,
+			ToTheHistory:=	TRUE ,
+			ToTheLogFile:=	TRUE,
+			AlarmlampOn:=	TRUE ,
+			(*急停*)AlarmAction1:=FALSE ,
+			 );
+		DATA.Motor_Limit:=FALSE;
+
+
+
+		fbSetAlarm[AlarmID.NeedHoming]
+			(
+			InUse:=			FALSE,
+			EventActive:=	(DATA.Hmi_btAutoRun )
+							AND NOT DATA.HomeDone ,
+			FilterInUse:= 	FALSE,
+			FilterTime:= 	T#20ms,
+			QuitRequired:=	TRUE,
+			QuitEvent:=		DATA.ResetAlarm ,
+			EventClass:=	2 ,
+			ToTheHistory:=	FALSE ,
+			ToTheLogFile:=	FALSE,
+			AlarmlampOn:=	FALSE ,
+			 );
+
+		fbSetAlarm[AlarmID.IsHoming]
+			(
+			InUse:=			TRUE,
+			EventActive:=	RqSysGoHome ,
+			FilterInUse:= 	FALSE,
+			FilterTime:= 	T#20ms,
+			QuitRequired:=	FALSE,
+			QuitEvent:=		DATA.ResetAlarm ,
+			EventClass:=	2 ,
+			ToTheHistory:=	FALSE ,
+			ToTheLogFile:=	FALSE,
+			AlarmlampOn:=	FALSE ,
+			 );
+
+		fbSetAlarm[AlarmID.Prushing]
+			(
+			InUse:=			TRUE,
+			EventActive:=	DATA.GoPauseState,
+			FilterInUse:= 	FALSE,
+			FilterTime:= 	T#20ms,
+			QuitRequired:=	FALSE,
+			QuitEvent:=		DATA.ResetAlarm ,
+			EventClass:=	2 ,
+			ToTheHistory:=	FALSE ,
+			ToTheLogFile:=	FALSE,
+			AlarmlampOn:=	FALSE ,
+			AlarmAction2:=	TRUE,(*暂停*)
+			 );
+
+		fbSetAlarm[AlarmID.AutoRuning]
+			(
+			InUse:=			TRUE,
+			EventActive:=	RqSysAutoModeIsActive
+							AND NOT fbAlarmMain.ShowlampOn
+							AND NOT DATA.GoPauseState
+							AND NOT DATA.AutoStoping,
+			FilterInUse:= 	FALSE,
+			FilterTime:= 	T#20ms,
+			QuitRequired:=	FALSE,
+			QuitEvent:=		DATA.ResetAlarm ,
+			EventClass:=	2 ,
+			ToTheHistory:=	FALSE ,
+			ToTheLogFile:=	FALSE,
+			AlarmlampOn:=	FALSE ,
+			 );
+
+		fbSetAlarm[AlarmID.AutoStoping]
+			(
+			InUse:=			TRUE,
+			EventActive:=	DATA.AutoStoping,
+			FilterInUse:= 	FALSE,
+			FilterTime:= 	T#20ms,
+			QuitRequired:=	FALSE,
+			QuitEvent:=		DATA.ResetAlarm ,
+			EventClass:=	2 ,
+			ToTheHistory:=	FALSE ,
+			ToTheLogFile:=	FALSE,
+			AlarmlampOn:=	FALSE ,
+			 );
+]]></ST>
+      </Implementation>
+    </Action>
+    <LineIds Name="MAIN_Alarm">
+      <LineId Id="169" Count="4" />
+      <LineId Id="215" Count="1" />
+      <LineId Id="219" Count="0" />
+      <LineId Id="3" Count="0" />
+      <LineId Id="218" Count="0" />
+      <LineId Id="84" Count="0" />
+      <LineId Id="98" Count="0" />
+      <LineId Id="86" Count="0" />
+      <LineId Id="29" Count="0" />
+      <LineId Id="192" Count="0" />
+      <LineId Id="188" Count="0" />
+      <LineId Id="39" Count="0" />
+      <LineId Id="41" Count="0" />
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="MAIN_Alarm.aInit">
+      <LineId Id="2" Count="0" />
+      <LineId Id="42" Count="0" />
+      <LineId Id="49" Count="21" />
+      <LineId Id="93" Count="0" />
+      <LineId Id="45" Count="0" />
+      <LineId Id="71" Count="21" />
+      <LineId Id="46" Count="1" />
+      <LineId Id="94" Count="1" />
+      <LineId Id="48" Count="0" />
+      <LineId Id="32" Count="0" />
+      <LineId Id="43" Count="0" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="MAIN_Alarm.aOtherAlarm">
+      <LineId Id="23" Count="0" />
+      <LineId Id="25" Count="2" />
+      <LineId Id="29" Count="6" />
+      <LineId Id="213" Count="0" />
+      <LineId Id="36" Count="2" />
+      <LineId Id="40" Count="4" />
+      <LineId Id="46" Count="6" />
+      <LineId Id="221" Count="0" />
+      <LineId Id="53" Count="0" />
+      <LineId Id="215" Count="0" />
+      <LineId Id="55" Count="21" />
+      <LineId Id="78" Count="6" />
+      <LineId Id="223" Count="0" />
+      <LineId Id="85" Count="0" />
+      <LineId Id="216" Count="0" />
+      <LineId Id="87" Count="4" />
+      <LineId Id="93" Count="6" />
+      <LineId Id="225" Count="0" />
+      <LineId Id="100" Count="0" />
+      <LineId Id="217" Count="0" />
+      <LineId Id="237" Count="0" />
+      <LineId Id="102" Count="5" />
+      <LineId Id="109" Count="6" />
+      <LineId Id="227" Count="0" />
+      <LineId Id="116" Count="0" />
+      <LineId Id="218" Count="0" />
+      <LineId Id="118" Count="6" />
+      <LineId Id="126" Count="6" />
+      <LineId Id="229" Count="0" />
+      <LineId Id="133" Count="0" />
+      <LineId Id="219" Count="0" />
+      <LineId Id="135" Count="7" />
+      <LineId Id="144" Count="7" />
+      <LineId Id="231" Count="0" />
+      <LineId Id="152" Count="5" />
+      <LineId Id="159" Count="6" />
+      <LineId Id="233" Count="0" />
+      <LineId Id="166" Count="5" />
+      <LineId Id="173" Count="6" />
+      <LineId Id="234" Count="0" />
+      <LineId Id="180" Count="6" />
+      <LineId Id="188" Count="9" />
+      <LineId Id="235" Count="0" />
+      <LineId Id="198" Count="5" />
+      <LineId Id="205" Count="6" />
+      <LineId Id="236" Count="0" />
+      <LineId Id="212" Count="0" />
+      <LineId Id="4" Count="0" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>
