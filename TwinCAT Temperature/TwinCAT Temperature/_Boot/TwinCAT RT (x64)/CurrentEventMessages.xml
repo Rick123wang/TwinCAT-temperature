@@ -1,0 +1,28 @@
+<?xml version="1.0"?>
+<TcEventSources Version="2">
+	<Source>
+		<GUID>{D0BD2408-F9FA-4546-B9C1-37195AD61B9A}</GUID>
+		<Name LcId="1033">NewEventClass_DisplayText</Name>
+		<Event>
+			<Id>1</Id>
+			<Message LcId="1033">开始</Message>
+		</Event>
+		<Event>
+			<Id>2</Id>
+			<Message LcId="1033">急停</Message>
+			<Detail>
+				<Name>Comment</Name>
+				<Text LcId="1033">Emergency Stop</Text>
+			</Detail>
+			<CauseRemedy Idx="1"/>
+		</Event>
+		<Event>
+			<Id>3</Id>
+			<Message LcId="1033">气压低</Message>
+			<Detail>
+				<Name>Comment</Name>
+				<Text LcId="1033">Air Pressure Low</Text>
+			</Detail>
+		</Event>
+	</Source>
+</TcEventSources>

@@ -1,4 +1,144 @@
 <?xml version="1.0"?>
 <TcSmProject xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://www.beckhoff.com/schemas/2012/07/TcSmProject" TcSmVersion="1.0" TcVersion="3.1.4024.53">
-	<Project ProjectGUID="{AB8A55FB-DBC0-4DF7-8819-8E608DF29218}" ShowHideConfigurations="#x6"/>
+	<DataTypes>
+		<DataType>
+			<Name GUID="{481A0C15-D2DB-59F6-F498-C30AA9C1998C}" IecBaseType="true" AutoDeleteType="true">ARRAY [0..7] OF BOOL</Name>
+			<BitSize>64</BitSize>
+			<BaseType GUID="{18071995-0000-0000-0000-000000000030}">BOOL</BaseType>
+			<ArrayInfo>
+				<LBound>0</LBound>
+				<Elements>8</Elements>
+			</ArrayInfo>
+		</DataType>
+		<DataType>
+			<Name GUID="{B29F5216-5EFE-ED93-4A52-BF4AE80A3D3C}" IecBaseType="true" AutoDeleteType="true">ARRAY [1..20,1..16] OF BOOL</Name>
+			<BitSize>2560</BitSize>
+			<BaseType GUID="{18071995-0000-0000-0000-000000000030}">BOOL</BaseType>
+			<ArrayInfo>
+				<LBound>1</LBound>
+				<Elements>20</Elements>
+			</ArrayInfo>
+			<ArrayInfo>
+				<LBound>1</LBound>
+				<Elements>16</Elements>
+			</ArrayInfo>
+		</DataType>
+		<DataType>
+			<Name GUID="{D0BD2408-F9FA-4546-B9C1-37195AD61B9A}" PersistentType="true">Sinterstar_Mini_EventClass</Name>
+			<DisplayName TxtId=""><![CDATA[NewEventClass_DisplayText]]></DisplayName>
+			<EventId>
+				<Name Id="1">Event</Name>
+				<DisplayName TxtId=""><![CDATA[开始]]></DisplayName>
+				<Severity>Info</Severity>
+			</EventId>
+			<EventId>
+				<Name Id="2">Sinterstar_Mini_EventClassEvent2</Name>
+				<DisplayName TxtId=""><![CDATA[急停]]></DisplayName>
+				<Comment TxtId=""><![CDATA[Emergency Stop]]></Comment>
+				<Severity>Error</Severity>
+				<CauseRemedy Idx="1"/>
+			</EventId>
+			<EventId>
+				<Name Id="3">Sinterstar_Mini_EventClassEvent3</Name>
+				<DisplayName TxtId=""><![CDATA[气压低]]></DisplayName>
+				<Comment TxtId=""><![CDATA[Air Pressure Low]]></Comment>
+				<Severity>Error</Severity>
+			</EventId>
+			<Hides>
+				<Hide GUID="{713BF7EF-D99D-4C4C-9BBA-CC0FAC36C871}"/>
+				<Hide GUID="{AFCB78E8-C2C4-474F-8AA9-25E0CBDCA084}"/>
+				<Hide GUID="{5561E62D-D8E3-46AA-B17C-4AA87FBD260A}"/>
+				<Hide GUID="{1418EAC1-4F50-4B7C-8082-7ADCD4D50085}"/>
+			</Hides>
+		</DataType>
+	</DataTypes>
+	<Project ProjectGUID="{AB8A55FB-DBC0-4DF7-8819-8E608DF29218}" Target64Bit="true" ShowHideConfigurations="#x6">
+		<System>
+			<Tasks>
+				<Task Id="3" Priority="20" CycleTime="100000" AmsPort="350" AdtTasks="true">
+					<Name>PlcTask</Name>
+				</Task>
+			</Tasks>
+		</System>
+		<Plc>
+			<Project GUID="{6C4B9EC4-7ED4-4755-8DE3-8AC5E63F508E}" Name="Untitled1" PrjFilePath="Untitled1\Untitled1.plcproj" TmcFilePath="Untitled1\Untitled1.tmc" ReloadTmc="true" AmsPort="851" FileArchiveSettings="#x000e" SymbolicMapping="true">
+				<Instance Id="#x08502000" TcSmClass="TComPlcObjDef" KeepUnrestoredLinks="2" TmcPath="Untitled1\Untitled1.tmc" TmcHash="{BDAA51CD-31DE-0313-5BA1-A0086B995614}">
+					<Name>Untitled1 Instance</Name>
+					<CLSID ClassFactory="TcPlc30">{08500001-0000-0000-F000-000000000064}</CLSID>
+					<Vars VarGrpType="1">
+						<Name>PlcTask Inputs</Name>
+						<Var>
+							<Name>MAIN.sensor</Name>
+							<Comment><![CDATA[输入信号 DI1-DI8]]></Comment>
+							<Type GUID="{481A0C15-D2DB-59F6-F498-C30AA9C1998C}">ARRAY [0..7] OF BOOL</Type>
+						</Var>
+						<Var>
+							<Name>Controller_v2.iTempre_Compare</Name>
+							<Type>INT</Type>
+						</Var>
+						<Var>
+							<Name>Controller_v2.iTempre</Name>
+							<Comment><![CDATA[ 传输回未被转换的温度值 ]]></Comment>
+							<Type>INT</Type>
+						</Var>
+						<Var>
+							<Name>.EL1889</Name>
+							<Comment><![CDATA[链接到硬件的变量]]></Comment>
+							<Type GUID="{B29F5216-5EFE-ED93-4A52-BF4AE80A3D3C}">ARRAY [1..20,1..16] OF BOOL</Type>
+						</Var>
+					</Vars>
+					<Vars VarGrpType="2" AreaNo="1">
+						<Name>PlcTask Outputs</Name>
+						<Var>
+							<Name>MAIN.output</Name>
+							<Comment><![CDATA[输出信号 DO1-DO8]]></Comment>
+							<Type GUID="{481A0C15-D2DB-59F6-F498-C30AA9C1998C}">ARRAY [0..7] OF BOOL</Type>
+						</Var>
+						<Var>
+							<Name>Controller_v2.bYPWMPos</Name>
+							<Comment><![CDATA[ PWM输出，加热 ]]></Comment>
+							<Type>BOOL</Type>
+						</Var>
+						<Var>
+							<Name>Controller_v2.bYPWMNeg</Name>
+							<Comment><![CDATA[ PWM输出，冷却 ]]></Comment>
+							<Type>BOOL</Type>
+						</Var>
+						<Var>
+							<Name>Controller_v2.bHeater_2</Name>
+							<Type>BOOL</Type>
+						</Var>
+						<Var>
+							<Name>.EL2889</Name>
+							<Type GUID="{B29F5216-5EFE-ED93-4A52-BF4AE80A3D3C}">ARRAY [1..20,1..16] OF BOOL</Type>
+						</Var>
+						<Var>
+							<Name>.strInputReceipeName</Name>
+							<Comment><![CDATA[需要保存到NovRam]]></Comment>
+							<Type>STRING(30)</Type>
+						</Var>
+						<Var>
+							<Name>.strCurrentReceipeName</Name>
+							<Comment><![CDATA[需要保存到NovRam]]></Comment>
+							<Type>STRING(30)</Type>
+						</Var>
+					</Vars>
+					<Contexts>
+						<Context>
+							<Id>0</Id>
+							<Name>PlcTask</Name>
+							<ManualConfig>
+								<OTCID>#x02010030</OTCID>
+							</ManualConfig>
+							<Priority>20</Priority>
+							<CycleTime>10000000</CycleTime>
+						</Context>
+					</Contexts>
+					<TaskPouOids>
+						<TaskPouOid Prio="20" OTCID="#x08502001"/>
+					</TaskPouOids>
+				</Instance>
+			</Project>
+		</Plc>
+	</Project>
 </TcSmProject>
